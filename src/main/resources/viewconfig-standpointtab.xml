@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout>
+    <VSNode splits="1.0">
+        <CNode>
+            <Component label="Standpoint Translator">
+                <Property id="pluginId" value="org.standpoint.plugin.StandpointTranslatorView"/>
+            </Component>
+        </CNode>
+    </VSNode>
+</layout>

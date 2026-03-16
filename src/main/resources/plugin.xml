@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?eclipse version="3.0"?>
+<plugin>
+
+    <extension
+            id="StandpointTranslatorView"
+            point="org.protege.editor.core.application.ViewComponent">
+        <label value="Standpoint Translator"/>
+        <class value="org.standpoint.plugin.ui.StandpointTabPlugin"/>
+        <category value="@org.protege.ontologycategory"/>
+    </extension>
+
+    <extension
+            id="StandpointTranslatorTab"
+            point="org.protege.editor.core.application.WorkspaceTab">
+        <label value="Standpoint Translator"/>
+        <class value="org.protege.editor.owl.ui.OWLWorkspaceViewsTab"/>
+        <index value="Z"/>
+        <editorKitId value="OWLEditorKit"/>
+        <defaultViewConfigFileName value="viewconfig-standpointtab.xml"/>
+    </extension>
+
+</plugin>
