@@ -13,24 +13,28 @@ public class Normaliser {
         this.df = df;
     }
 
-    public OWLSubClassOfAxiom normalise(OWLSubClassOfAxiom axiom) {
-        OWLClassExpression C = axiom.getSubClass();
-        OWLClassExpression D = axiom.getSuperClass();
+    // Converts C ⊑ D → ⊤ ⊑ NNF(¬C ⊔ D)
+    public OWLSubClassOfAxiom normaliseGCI(OWLSubClassOfAxiom gciAxiom) {
+        OWLClassExpression subClass   = gciAxiom.getSubClass();
+        OWLClassExpression superClass = gciAxiom.getSuperClass();
 
-        if (C.isOWLThing()) {
-            return df.getOWLSubClassOfAxiom(df.getOWLThing(), D.getNNF());
+        if (subClass.isOWLThing()) {
+            return df.getOWLSubClassOfAxiom(df.getOWLThing(), superClass.getNNF());
         }
 
-        OWLClassExpression notC_or_D = df.getOWLObjectUnionOf(df.getOWLObjectComplementOf(C), D);
+        OWLClassExpression negSubClass_or_superClass = df.getOWLObjectUnionOf(
+                df.getOWLObjectComplementOf(subClass), superClass);
 
-        return df.getOWLSubClassOfAxiom(df.getOWLThing(), notC_or_D.getNNF());
+        return df.getOWLSubClassOfAxiom(
+                df.getOWLThing(),
+                negSubClass_or_superClass.getNNF());
     }
 
-    public Set<OWLSubClassOfAxiom> normaliseAll(Set<OWLSubClassOfAxiom> axioms) {
-        Set<OWLSubClassOfAxiom> result = new HashSet<>();
-        for (OWLSubClassOfAxiom axiom : axioms) {
-            result.add(normalise(axiom));
+    public Set<OWLSubClassOfAxiom> normaliseAllGCIs(Set<OWLSubClassOfAxiom> gciAxioms) {
+        Set<OWLSubClassOfAxiom> normalisedAxioms = new HashSet<>();
+        for (OWLSubClassOfAxiom gciAxiom : gciAxioms) {
+            normalisedAxioms.add(normaliseGCI(gciAxiom));
         }
-        return result;
+        return normalisedAxioms;
     }
 }

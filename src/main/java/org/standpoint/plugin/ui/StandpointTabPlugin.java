@@ -3,11 +3,13 @@ package org.standpoint.plugin.ui;
 import org.protege.editor.owl.ui.view.AbstractOWLViewComponent;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.normalisation.Normaliser;
+import org.standpoint.plugin.parser.PlaceholderSubstituter;
 import org.standpoint.plugin.translation.OntologyExporter;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.util.Map;
 import java.util.Set;
 
 public class StandpointTabPlugin extends AbstractOWLViewComponent {
@@ -56,7 +58,7 @@ public class StandpointTabPlugin extends AbstractOWLViewComponent {
             // Normalise
             Normaliser normaliser = new Normaliser(df);
             Set<OWLSubClassOfAxiom> original = ontology.getAxioms(AxiomType.SUBCLASS_OF);
-            Set<OWLSubClassOfAxiom> normalised = normaliser.normaliseAll(original);
+            Set<OWLSubClassOfAxiom> normalised = normaliser.normaliseAllGCIs(original);
 
             // Export
             OntologyExporter exporter = new OntologyExporter();
@@ -65,6 +67,19 @@ public class StandpointTabPlugin extends AbstractOWLViewComponent {
             // Display
             resultArea.setText(buildReport(original, normalised, outputFile));
             statusLabel.setText("Done — " + outputFile.getName());
+
+//            String formula = "box[s1]( A or not_diamond[s2]( (B and C) or (v only I) ) SubClassOf E or not_box[s2]( (not K) and diamond[s3](r some G) ) or (h max 3 diamond[s4](M)))";
+//
+//            PlaceholderSubstituter sub = new PlaceholderSubstituter();
+//            String substituted = sub.substitute(formula);
+//
+//            StringBuilder sb = new StringBuilder();
+//            sb.append("=== SUBSTITUTED ===\n\n").append(substituted).append("\n\n");
+//            sb.append("=== MAP ===\n\n");
+//            for (Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry> e : sub.getMap().entrySet()) {
+//                sb.append(e.getKey()).append(" → ").append(e.getValue()).append("\n");
+//            }
+//            resultArea.setText(sb.toString());
 
         } catch (Exception ex) {
             statusLabel.setText("Error: " + ex.getMessage());
