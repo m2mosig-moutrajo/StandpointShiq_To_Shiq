@@ -15,6 +15,8 @@ public class PlaceholderSubstituter {
         public String standpoint;
         public String manchester;
         public boolean isRoot = false;
+        public boolean isNegatedAxiom = false;
+        public boolean isAssertionAxiom = false;  // ← new
 
         public PlaceholderEntry(Operator operator, String standpoint, String manchesterExpression) {
             this.operator = operator;
@@ -64,25 +66,25 @@ public class PlaceholderSubstituter {
     private String processNode(Node node) {
         if (node == null) return "";
 
-        // Text node — return as plain Manchester
         if (node.getNodeType() == Node.TEXT_NODE) {
             return node.getTextContent().trim();
         }
 
-        // Not a modal element — return text content
         if (node.getNodeType() != Node.ELEMENT_NODE
                 || !node.getNodeName().equals("modal")) {
             return node.getTextContent().trim();
         }
 
-        // Extract modal attributes
         NamedNodeMap attrs = node.getAttributes();
-        String modalOp    = attrs.getNamedItem("op").getNodeValue();
-        String standpoint = attrs.getNamedItem("standpoint").getNodeValue();
-        Node negatedAttr  = attrs.getNamedItem("negated");
-        boolean isNegated = negatedAttr != null && "true".equals(negatedAttr.getNodeValue());
+        String modalOp         = attrs.getNamedItem("op").getNodeValue();
+        String standpoint      = attrs.getNamedItem("standpoint").getNodeValue();
+        Node negatedAttr       = attrs.getNamedItem("negated");
+        Node negatedInnerAttr  = attrs.getNamedItem("negatedInner");
+        boolean isNegated      = negatedAttr != null
+                && "true".equals(negatedAttr.getNodeValue());
+        boolean isNegatedInner = negatedInnerAttr != null
+                && "true".equals(negatedInnerAttr.getNodeValue());
 
-        // Process children — mix of text nodes and nested modal elements
         StringBuilder innerManchester = new StringBuilder();
         NodeList children = node.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
@@ -91,28 +93,70 @@ public class PlaceholderSubstituter {
                 innerManchester.append(child.getTextContent());
             } else if (child.getNodeType() == Node.ELEMENT_NODE
                     && child.getNodeName().equals("modal")) {
-                // Nested modal — recurse and get placeholder key
                 innerManchester.append(processNode(child));
             }
         }
 
         String processedInner = innerManchester.toString().trim();
 
-        // Apply modal duality if negated: ¬box → diamond(¬inner), ¬diamond → box(¬inner)
+        boolean isGCI       = processedInner.contains("SubClassOf");
+        boolean isAssertion = processedInner.contains(" Type ")
+                && !processedInner.contains("SubClassOf");
+
         Operator operator;
         String manchesterExpression;
-        if (isNegated) {
+        PlaceholderEntry entry;
+
+        if (isNegated && isNegatedInner) {
+            // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
-            manchesterExpression = "not (" + processedInner + ")";
+            manchesterExpression = processedInner;
+            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            if (isAssertion) entry.isAssertionAxiom = true;
+
+        } else if (isNegated) {
+            // ¬□_s[X] → ◇_s[...], ¬◇_s[X] → □_s[...]
+            operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
+            if (isGCI) {
+                manchesterExpression = processedInner;
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+                entry.isNegatedAxiom = true;
+            } else if (isAssertion) {
+                manchesterExpression = processedInner;
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+                entry.isNegatedAxiom = true;
+                entry.isAssertionAxiom = true;
+            } else {
+                manchesterExpression = "not (" + processedInner + ")";
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            }
+
+        } else if (isNegatedInner) {
+            // □_s[¬X] or ◇_s[¬X]
+            operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
+            if (isGCI) {
+                manchesterExpression = processedInner;
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+                entry.isNegatedAxiom = true;
+            } else if (isAssertion) {
+                manchesterExpression = processedInner;
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+                entry.isNegatedAxiom = true;
+                entry.isAssertionAxiom = true;
+            } else {
+                manchesterExpression = "not (" + processedInner + ")";
+                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            }
+
         } else {
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
+            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            if (isAssertion) entry.isAssertionAxiom = true;
         }
 
         String placeholderKey = PlaceholderUtil.generate();
-        placeholderMap.put(placeholderKey,
-                new PlaceholderEntry(operator, standpoint, manchesterExpression));
-
+        placeholderMap.put(placeholderKey, entry);
         return placeholderKey;
     }
 }

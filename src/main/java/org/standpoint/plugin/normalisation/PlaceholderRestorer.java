@@ -13,7 +13,6 @@ public class PlaceholderRestorer {
     public PlaceholderRestorer(Map<String, PlaceholderEntry> placeholderMap) {
         this.placeholderMap = placeholderMap;
     }
-
     // Scans all entries and resolves any not(SP_x) patterns by applying modal duality
     public boolean restoreModalDuality() {
         boolean anyChanged = false;
@@ -26,7 +25,6 @@ public class PlaceholderRestorer {
         }
         return anyChanged;
     }
-
     // Scans a Manchester expression for not(SP_x) and resolves duality
     private String resolveDualityInExpression(String manchesterExpr) {
         StringBuilder result = new StringBuilder();
@@ -59,7 +57,6 @@ public class PlaceholderRestorer {
 
         return result.toString();
     }
-
     // Flips box↔diamond and pushes negation inside (modal duality law)
     private void applyModalDuality(PlaceholderEntry entry) {
         Operator dualOperator = entry.operator == Operator.BOX

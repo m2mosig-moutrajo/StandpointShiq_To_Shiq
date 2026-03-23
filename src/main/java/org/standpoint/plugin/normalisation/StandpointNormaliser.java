@@ -24,15 +24,14 @@ public class StandpointNormaliser {
     public String normaliseSubClassOf(String gciManchesterExpr) {
         gciManchesterExpr = gciManchesterExpr.trim();
 
-        int subClassOfIdx = findTopLevelSubClassOf(gciManchesterExpr);
+        int subClassOfIdx = gciManchesterExpr.indexOf("SubClassOf");
         if (subClassOfIdx == -1) {
             // No SubClassOf found — already a concept expression, skip
             return gciManchesterExpr;
         }
 
         String subClassExpr  = gciManchesterExpr.substring(0, subClassOfIdx).trim();
-        String superClassExpr = gciManchesterExpr.substring(
-                subClassOfIdx + "SubClassOf".length()).trim();
+        String superClassExpr = gciManchesterExpr.substring(subClassOfIdx + "SubClassOf".length()).trim();
 
         OWLClassExpression subClass  = parseManchesterExpression(subClassExpr);
         OWLClassExpression superClass = parseManchesterExpression(superClassExpr);
@@ -47,7 +46,7 @@ public class StandpointNormaliser {
             ).getNNF();
         }
 
-        return "owl:Thing SubClassOf " + renderToManchester(normalisedRHS);
+        return "Thing SubClassOf " + renderToManchester(normalisedRHS);
     }
 
     // Applies NNF to a pure concept expression (no SubClassOf)
@@ -79,6 +78,10 @@ public class StandpointNormaliser {
     }
 
     public OWLClassExpression parseManchesterExpression(String manchesterExpr) {
+        manchesterExpr = manchesterExpr
+                .replace("owl:Nothing", "Nothing")
+                .replace("owl:Thing", "Thing");
+
         ManchesterOWLSyntaxParser parser = OWLManager.createManchesterParser();
         parser.setStringToParse(manchesterExpr);
         parser.setOWLEntityChecker(
