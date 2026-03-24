@@ -42,6 +42,12 @@ public class OntologyLoader {
             if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels));
         }
 
+        // Role inclusion axioms
+        for (OWLSubObjectPropertyOfAxiom axiom : ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
+            List<String> labels = readAllStandpointLabels(axiom, standpointLabelProp);
+            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels));
+        }
+
         System.out.println("Loaded " + result.size() + " axiom(s) with standpointLabel");
         return result;
     }

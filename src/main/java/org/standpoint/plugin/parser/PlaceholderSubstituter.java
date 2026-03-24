@@ -11,15 +11,24 @@ public class PlaceholderSubstituter {
     public enum Operator { BOX, DIAMOND }
 
     public static class PlaceholderEntry {
+
+        public enum StandpointAxiomType {
+            NONE,
+            GCI,
+            ASSERTION,
+            ROLE_INCLUSION,
+            TRANSITIVITY
+        }
+
         public Operator operator;
         public String standpoint;
         public String manchester;
-        public boolean isRoot = false;
+        public boolean isRoot         = false;
         public boolean isNegatedAxiom = false;
-        public boolean isAssertionAxiom = false;  // ← new
+        public StandpointAxiomType standpointAxiomType = StandpointAxiomType.NONE;
 
         public PlaceholderEntry(Operator operator, String standpoint, String manchesterExpression) {
-            this.operator = operator;
+            this.operator   = operator;
             this.standpoint = standpoint;
             this.manchester = manchesterExpression;
         }
@@ -41,16 +50,13 @@ public class PlaceholderSubstituter {
         try {
             standpointLabelXml = standpointLabelXml.trim();
 
-            // Wrap in root so XML parser can handle single root element
             String wrappedXml = "<root>" + standpointLabelXml + "</root>";
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setIgnoringElementContentWhitespace(false);
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new InputSource(new StringReader(wrappedXml)));
 
-            Node rootNode = doc.getDocumentElement(); // <root>
-
-            // Process the single child — the outermost <modal>
+            Node rootNode = doc.getDocumentElement();
             String rootPlaceholderKey = processNode(rootNode.getFirstChild());
 
             PlaceholderEntry rootEntry = placeholderMap.get(rootPlaceholderKey);
@@ -75,14 +81,14 @@ public class PlaceholderSubstituter {
             return node.getTextContent().trim();
         }
 
-        NamedNodeMap attrs = node.getAttributes();
-        String modalOp         = attrs.getNamedItem("op").getNodeValue();
-        String standpoint      = attrs.getNamedItem("standpoint").getNodeValue();
-        Node negatedAttr       = attrs.getNamedItem("negated");
-        Node negatedInnerAttr  = attrs.getNamedItem("negatedInner");
-        boolean isNegated      = negatedAttr != null
+        NamedNodeMap attrs      = node.getAttributes();
+        String modalOp          = attrs.getNamedItem("op").getNodeValue();
+        String standpoint       = attrs.getNamedItem("standpoint").getNodeValue();
+        Node negatedAttr        = attrs.getNamedItem("negated");
+        Node negatedInnerAttr   = attrs.getNamedItem("negatedInner");
+        boolean isNegated       = negatedAttr != null
                 && "true".equals(negatedAttr.getNodeValue());
-        boolean isNegatedInner = negatedInnerAttr != null
+        boolean isNegatedInner  = negatedInnerAttr != null
                 && "true".equals(negatedInnerAttr.getNodeValue());
 
         StringBuilder innerManchester = new StringBuilder();
@@ -99,33 +105,40 @@ public class PlaceholderSubstituter {
 
         String processedInner = innerManchester.toString().trim();
 
-        boolean isGCI       = processedInner.contains("SubClassOf");
-        boolean isAssertion = processedInner.contains(" Type ")
-                && !processedInner.contains("SubClassOf");
+        // Detect axiom type
+        PlaceholderEntry.StandpointAxiomType axiomType;
+        if (processedInner.contains("SubClassOf")) {
+            axiomType = PlaceholderEntry.StandpointAxiomType.GCI;
+        } else if (processedInner.contains(" Type ")
+                && !processedInner.contains("SubClassOf")) {
+            axiomType = PlaceholderEntry.StandpointAxiomType.ASSERTION;
+        } else if (processedInner.contains("SubPropertyOf")) {
+            axiomType = PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION;
+        } else {
+            axiomType = PlaceholderEntry.StandpointAxiomType.NONE;
+        }
 
         Operator operator;
         String manchesterExpression;
         PlaceholderEntry entry;
 
         if (isNegated && isNegatedInner) {
-            // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]
+            // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]  (double negation)
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
             manchesterExpression = processedInner;
             entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            if (isAssertion) entry.isAssertionAxiom = true;
+            entry.standpointAxiomType = axiomType;
 
         } else if (isNegated) {
             // ¬□_s[X] → ◇_s[...], ¬◇_s[X] → □_s[...]
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
-            if (isGCI) {
+            if (axiomType == PlaceholderEntry.StandpointAxiomType.GCI
+                    || axiomType == PlaceholderEntry.StandpointAxiomType.ASSERTION
+                    || axiomType == PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION) {
                 manchesterExpression = processedInner;
                 entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom = true;
-            } else if (isAssertion) {
-                manchesterExpression = processedInner;
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom = true;
-                entry.isAssertionAxiom = true;
+                entry.isNegatedAxiom      = true;
+                entry.standpointAxiomType = axiomType;
             } else {
                 manchesterExpression = "not (" + processedInner + ")";
                 entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
@@ -134,25 +147,24 @@ public class PlaceholderSubstituter {
         } else if (isNegatedInner) {
             // □_s[¬X] or ◇_s[¬X]
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
-            if (isGCI) {
+            if (axiomType == PlaceholderEntry.StandpointAxiomType.GCI
+                    || axiomType == PlaceholderEntry.StandpointAxiomType.ASSERTION
+                    || axiomType == PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION) {
                 manchesterExpression = processedInner;
                 entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom = true;
-            } else if (isAssertion) {
-                manchesterExpression = processedInner;
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom = true;
-                entry.isAssertionAxiom = true;
+                entry.isNegatedAxiom      = true;
+                entry.standpointAxiomType = axiomType;
             } else {
                 manchesterExpression = "not (" + processedInner + ")";
                 entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
             }
 
         } else {
+            // No negation
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
             entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            if (isAssertion) entry.isAssertionAxiom = true;
+            entry.standpointAxiomType = axiomType;
         }
 
         String placeholderKey = PlaceholderUtil.generate();
