@@ -27,9 +27,7 @@ public class StandpointPipeline {
     public PipelineResult run() throws Exception {
 
         // Step 1 — load axioms with standpoint labels
-        List<OntologyLoader.AxiomWithLabel> axiomsWithLabels =
-                OntologyLoader.loadAxiomsWithLabels(ontology);
-        if (axiomsWithLabels.isEmpty()) return null;
+        List<OntologyLoader.AxiomWithLabel> axiomsWithLabels = OntologyLoader.loadAxiomsWithLabels(ontology);
 
         // Step 1.1 — load sharpenings
         List<SharpeningStatement> loadedSharpenings = OntologyLoader.loadSharpenings(ontology);
@@ -391,6 +389,88 @@ public class StandpointPipeline {
 
         for (String key : transitivityKeysToRemove) {
             normalisedPlaceholderMap.remove(key);
+        }
+
+        // Step 10 — Rule (8): ¬(s1 ∩ ... ∩ sn ⪯ u) → {v ⪯ s1, ..., v ⪯ sn, v ∩ u ⪯ 0}
+        for (SharpeningStatement parsed : loadedSharpenings) {
+            if (!parsed.isNegated) continue;
+
+            // Generate fresh standpoint v
+            String freshV = "FS_" + PlaceholderUtil.generateWithoutPrefix();
+
+            // v ⪯ s1, ..., v ⪯ sn
+            for (String si : parsed.lhsStandpoints) {
+                sharpenings.add(new SharpeningStatement(
+                        Collections.singletonList(freshV), si));
+            }
+
+            // v ∩ u ⪯ 0
+            List<String> vAndU = new ArrayList<>();
+            vAndU.add(freshV);
+            vAndU.add(parsed.rhsStandpoint);
+            sharpenings.add(new SharpeningStatement(vAndU, "0"));
+
+            System.out.println("Rule (8) applied:");
+            System.out.println("  Fresh standpoint: " + freshV);
+        }
+
+        // Step 11 — Rule (9): s1 ∩ ... ∩ sn ⪯ 0
+        // → {□_s1[⊤ ⊑ A1], ..., □_sn[⊤ ⊑ An], □_*[A1 ⊓ ... ⊓ An ⊑ ⊥]}
+        List<SharpeningStatement> zeroSharpenings = new ArrayList<>();
+        for (SharpeningStatement s : sharpenings) {
+            if (s.isZero()) zeroSharpenings.add(s);
+        }
+
+        // Remove zero sharpenings from main list — they get replaced by axioms
+        sharpenings.removeAll(zeroSharpenings);
+
+        // Also process original loaded zero sharpenings
+        for (SharpeningStatement parsed : loadedSharpenings) {
+            if (!parsed.isNegated && parsed.isZero()) zeroSharpenings.add(parsed);
+        }
+
+        for (SharpeningStatement zero : zeroSharpenings) {
+            List<String> freshConcepts = new ArrayList<>();
+
+            // □_si[⊤ ⊑ Ai] for each si
+            for (String si : zero.lhsStandpoints) {
+                String freshCi = "FC_" + PlaceholderUtil.generateWithoutPrefix();
+                freshConcepts.add(freshCi);
+
+                helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
+                        helperDf.getOWLClass(
+                                IRI.create("http://standpoint.org/helper#" + freshCi))));
+
+                String key = PlaceholderUtil.generate();
+                PlaceholderSubstituter.PlaceholderEntry entry =
+                        new PlaceholderSubstituter.PlaceholderEntry(
+                                Operator.BOX, si, "Thing SubClassOf " + freshCi);
+                entry.isRoot = true;
+                entry.standpointAxiomType =
+                        PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+                entry.manchester = standpointNormaliser.normaliseSubClassOf(entry.manchester);
+                normalisedPlaceholderMap.put(key, entry);
+            }
+
+            // □_*[A1 ⊓ ... ⊓ An ⊑ ⊥]
+            String intersection = String.join(" and ", freshConcepts);
+            String key = PlaceholderUtil.generate();
+            PlaceholderSubstituter.PlaceholderEntry entry =
+                    new PlaceholderSubstituter.PlaceholderEntry(
+                            Operator.BOX, "*",
+                            "(" + intersection + ") SubClassOf owl:Nothing");
+            entry.isRoot = true;
+            entry.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            entry.manchester = standpointNormaliser.normaliseSubClassOf(entry.manchester);
+            normalisedPlaceholderMap.put(key, entry);
+        }
+
+        // Add normal sharpenings from loaded
+        for (SharpeningStatement parsed : loadedSharpenings) {
+            if (!parsed.isNegated && !parsed.isZero()) {
+                sharpenings.add(parsed);
+            }
         }
 
         return new PipelineResult(normalisedPlaceholderMap, sharpenings);

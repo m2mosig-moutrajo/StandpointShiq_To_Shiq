@@ -1,5 +1,14 @@
 package org.standpoint.plugin.translation;
 
+import org.w3c.dom.Document;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,28 +34,74 @@ public class SharpeningStatement {
         return "0".equals(rhsStandpoint);
     }
 
-    // Parses "s1 AND s2 <= s3" or "s1 AND s2 <= 0" or "NOT(s1 AND s2 <= u)"
-    public static SharpeningStatement parse(String sharpening) {
-        sharpening = sharpening.trim();
+    public static SharpeningStatement parse(String xml) {
+        try {
+            String wrapped = "<root>" + xml.trim() + "</root>";
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(new InputSource(new StringReader(wrapped)));
 
-        boolean isNegated = false;
-        if (sharpening.startsWith("NOT(") && sharpening.endsWith(")")) {
-            isNegated  = true;
-            sharpening = sharpening.substring(4, sharpening.length() - 1).trim();
+            Node sharpening = doc.getDocumentElement().getFirstChild();
+
+            // Check negated attribute
+            NamedNodeMap attrs = sharpening.getAttributes();
+            Node negatedAttr = attrs.getNamedItem("negated");
+            boolean isNegated = negatedAttr != null
+                    && "true".equals(negatedAttr.getNodeValue());
+
+            // Parse LHS
+            List<String> lhsStandpoints = new ArrayList<>();
+            Node lhsNode = getChildByName(sharpening, "lhs");
+            Node intersectionNode = getChildByName(lhsNode, "intersection");
+
+            if (intersectionNode != null) {
+                // Multiple standpoints in intersection
+                NodeList standpoints = intersectionNode.getChildNodes();
+                for (int i = 0; i < standpoints.getLength(); i++) {
+                    Node child = standpoints.item(i);
+                    if (child.getNodeType() == Node.ELEMENT_NODE
+                            && child.getNodeName().equals("standpoint")) {
+                        lhsStandpoints.add(child.getTextContent().trim());
+                    }
+                }
+            } else {
+                // Single standpoint
+                Node standpointNode = getChildByName(lhsNode, "standpoint");
+                if (standpointNode != null) {
+                    lhsStandpoints.add(standpointNode.getTextContent().trim());
+                }
+            }
+
+            // Parse RHS
+            Node rhsNode = getChildByName(sharpening, "rhs");
+            Node zeroNode = getChildByName(rhsNode, "zero");
+            String rhs;
+            if (zeroNode != null) {
+                rhs = "0";
+            } else {
+                Node standpointNode = getChildByName(rhsNode, "standpoint");
+                rhs = standpointNode.getTextContent().trim();
+            }
+
+            return new SharpeningStatement(lhsStandpoints, rhs, isNegated);
+
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid sharpening XML: " + e.getMessage(), e);
         }
+    }
 
-        int leqIdx = sharpening.indexOf("<=");
-        if (leqIdx == -1)
-            throw new IllegalArgumentException("Invalid sharpening: " + sharpening);
-
-        String leftPart  = sharpening.substring(0, leqIdx).trim();
-        String rightPart = sharpening.substring(leqIdx + 2).trim();
-
-        String[] parts = leftPart.split("\\s+AND\\s+");
-        List<String> left = new ArrayList<>();
-        for (String p : parts) left.add(p.trim());
-
-        return new SharpeningStatement(left, rightPart, isNegated);
+    // Helper to get first child element by name
+    private static Node getChildByName(Node parent, String name) {
+        if (parent == null) return null;
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() == Node.ELEMENT_NODE
+                    && child.getNodeName().equals(name)) {
+                return child;
+            }
+        }
+        return null;
     }
 
     @Override
