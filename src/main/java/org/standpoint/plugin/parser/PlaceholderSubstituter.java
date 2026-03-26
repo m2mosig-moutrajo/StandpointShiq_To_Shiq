@@ -14,10 +14,11 @@ public class PlaceholderSubstituter {
 
         public enum StandpointAxiomType {
             NONE,
-            GCI,
-            ASSERTION,
+            CONCEPT_INCLUSION,
+            CONCEPT_ASSERTION,
             ROLE_INCLUSION,
-            TRANSITIVITY
+            ROLE_ASSERTION,
+            ROLE_TRANSITIVITY
         }
 
         public Operator operator;
@@ -81,15 +82,13 @@ public class PlaceholderSubstituter {
             return node.getTextContent().trim();
         }
 
-        NamedNodeMap attrs      = node.getAttributes();
-        String modalOp          = attrs.getNamedItem("op").getNodeValue();
-        String standpoint       = attrs.getNamedItem("standpoint").getNodeValue();
-        Node negatedAttr        = attrs.getNamedItem("negated");
-        Node negatedInnerAttr   = attrs.getNamedItem("negatedInner");
-        boolean isNegated       = negatedAttr != null
-                && "true".equals(negatedAttr.getNodeValue());
-        boolean isNegatedInner  = negatedInnerAttr != null
-                && "true".equals(negatedInnerAttr.getNodeValue());
+        NamedNodeMap attrs     = node.getAttributes();
+        String modalOp         = attrs.getNamedItem("op").getNodeValue();
+        String standpoint      = attrs.getNamedItem("standpoint").getNodeValue();
+        Node negatedAttr       = attrs.getNamedItem("negated");
+        Node negatedInnerAttr  = attrs.getNamedItem("negatedInner");
+        boolean isNegated      = negatedAttr != null && "true".equals(negatedAttr.getNodeValue());
+        boolean isNegatedInner = negatedInnerAttr != null && "true".equals(negatedInnerAttr.getNodeValue());
 
         StringBuilder innerManchester = new StringBuilder();
         NodeList children = node.getChildNodes();
@@ -105,66 +104,36 @@ public class PlaceholderSubstituter {
 
         String processedInner = innerManchester.toString().trim();
 
-        // Detect axiom type
-        PlaceholderEntry.StandpointAxiomType axiomType;
-        if (processedInner.contains("SubClassOf")) {
-            axiomType = PlaceholderEntry.StandpointAxiomType.GCI;
-        } else if (processedInner.contains(" Type ")
-                && !processedInner.contains("SubClassOf")) {
-            axiomType = PlaceholderEntry.StandpointAxiomType.ASSERTION;
-        } else if (processedInner.contains("SubPropertyOf")) {
-            axiomType = PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION;
-        } else {
-            axiomType = PlaceholderEntry.StandpointAxiomType.NONE;
-        }
-
         Operator operator;
         String manchesterExpression;
         PlaceholderEntry entry;
 
         if (isNegated && isNegatedInner) {
-            // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]  (double negation)
+            // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
             manchesterExpression = processedInner;
             entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            entry.standpointAxiomType = axiomType;
+            // axiomType will be set by pipeline from AxiomWithLabel
 
         } else if (isNegated) {
-            // ¬□_s[X] → ◇_s[...], ¬◇_s[X] → □_s[...]
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
-            if (axiomType == PlaceholderEntry.StandpointAxiomType.GCI
-                    || axiomType == PlaceholderEntry.StandpointAxiomType.ASSERTION
-                    || axiomType == PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION) {
-                manchesterExpression = processedInner;
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom      = true;
-                entry.standpointAxiomType = axiomType;
-            } else {
-                manchesterExpression = "not (" + processedInner + ")";
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            }
+            // For concept expressions — wrap with not()
+            // For axiom types — pipeline handles negation via isNegatedAxiom
+            manchesterExpression = processedInner;
+            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            entry.isNegatedAxiom = true;
 
         } else if (isNegatedInner) {
-            // □_s[¬X] or ◇_s[¬X]
-            operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
-            if (axiomType == PlaceholderEntry.StandpointAxiomType.GCI
-                    || axiomType == PlaceholderEntry.StandpointAxiomType.ASSERTION
-                    || axiomType == PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION) {
-                manchesterExpression = processedInner;
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-                entry.isNegatedAxiom      = true;
-                entry.standpointAxiomType = axiomType;
-            } else {
-                manchesterExpression = "not (" + processedInner + ")";
-                entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            }
-
-        } else {
-            // No negation
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
             entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
-            entry.standpointAxiomType = axiomType;
+            entry.isNegatedAxiom = true;
+
+        } else {
+            operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
+            manchesterExpression = processedInner;
+            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            // axiomType will be set by pipeline from AxiomWithLabel
         }
 
         String placeholderKey = PlaceholderUtil.generate();
