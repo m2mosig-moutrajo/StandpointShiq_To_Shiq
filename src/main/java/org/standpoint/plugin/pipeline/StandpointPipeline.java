@@ -27,10 +27,14 @@ public class StandpointPipeline {
     public PipelineResult run() throws Exception {
 
         // Step 1 — load axioms with standpoint labels
-        List<OntologyLoader.AxiomWithLabel> axiomsWithLabels = OntologyLoader.loadAxiomsWithLabels(ontology);
+        List<OntologyLoader.AxiomWithLabel> axiomsWithLabels =
+                OntologyLoader.loadAxiomsWithLabels(ontology);
 
         // Step 1.1 — load sharpenings
-        List<SharpeningStatement> loadedSharpenings = OntologyLoader.loadSharpenings(ontology);
+        List<SharpeningStatement> loadedSharpenings =
+                OntologyLoader.loadSharpenings(ontology);
+
+        if (axiomsWithLabels.isEmpty() && loadedSharpenings.isEmpty()) return null;
 
         // Step 2 — setup helper ontology for Manchester parsing
         OWLOntologyManager helperManager = OWLManager.createOWLOntologyManager();
@@ -45,7 +49,7 @@ public class StandpointPipeline {
         StandpointNormaliser standpointNormaliser =
                 new StandpointNormaliser(helperDf, helperManager, helperOntology);
 
-        // Step 3 — normalise each axiom
+        // Step 3 — substitute and normalise each axiom
         Map<String, PlaceholderSubstituter.PlaceholderEntry> normalisedPlaceholderMap =
                 new LinkedHashMap<>();
 
@@ -60,12 +64,12 @@ public class StandpointPipeline {
                 registerAxiomEntitiesInHelper(placeholderMap, axiomWithLabel.axiom,
                         helperManager, helperOntology, helperDf);
 
-                // Set axiom type on root entry from loader — no string detection needed
+                // Set axiom type on root entry from loader
                 PlaceholderSubstituter.PlaceholderEntry rootEntry =
                         placeholderMap.get(rootPlaceholderKey);
                 rootEntry.standpointAxiomType = axiomWithLabel.axiomType;
 
-                // Only normalise SubClassOf on GCI root entries
+                // Only normalise SubClassOf on non-negated CONCEPT_INCLUSION root entries
                 if (!rootEntry.isNegatedAxiom
                         && rootEntry.standpointAxiomType
                         == PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION) {
@@ -73,25 +77,8 @@ public class StandpointPipeline {
                             standpointNormaliser.normaliseSubClassOf(rootEntry.manchester);
                 }
 
-                // NNF loop — only on NONE type (concept expressions)
-                boolean changed = true;
-                while (changed) {
-                    changed = false;
-                    for (PlaceholderSubstituter.PlaceholderEntry entry : placeholderMap.values()) {
-                        if (!entry.isRoot
-                                && entry.standpointAxiomType
-                                == PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.NONE) {
-                            String nnf = standpointNormaliser
-                                    .applyNNFToConceptExpression(entry.manchester);
-                            if (!nnf.equals(entry.manchester)) {
-                                entry.manchester = nnf;
-                                changed = true;
-                            }
-                        }
-                    }
-                    PlaceholderRestorer dualityRestorer = new PlaceholderRestorer(placeholderMap);
-                    if (dualityRestorer.restoreModalDuality()) changed = true;
-                }
+                // Per-axiom duality restoration before merging
+                new PlaceholderRestorer(placeholderMap).restoreModalDuality();
 
                 normalisedPlaceholderMap.putAll(placeholderMap);
             }
@@ -146,9 +133,15 @@ public class StandpointPipeline {
                     entry.operator, entry.standpoint,
                     "Thing SubClassOf (" + freshR + " some " + freshA + ")");
 
-            e1.isRoot = true; e1.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-            e2.isRoot = true; e2.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-            e3.isRoot = true; e3.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e1.isRoot = true;
+            e1.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e2.isRoot = true;
+            e2.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e3.isRoot = true;
+            e3.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
 
             normalisedPlaceholderMap.put(key1, e1);
             normalisedPlaceholderMap.put(key2, e2);
@@ -172,8 +165,8 @@ public class StandpointPipeline {
             if (entry.standpointAxiomType
                     != PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_ASSERTION) continue;
 
-            String inner   = entry.manchester;
-            int typeIdx    = inner.indexOf(" Type ");
+            String inner      = entry.manchester;
+            int typeIdx       = inner.indexOf(" Type ");
             if (typeIdx == -1) continue;
 
             String individual = inner.substring(0, typeIdx).trim();
@@ -190,11 +183,12 @@ public class StandpointPipeline {
 
             entry.manchester          = individual + " Type " + newConcept;
             entry.isNegatedAxiom      = false;
-            entry.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.NONE;
+            entry.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.NONE;
             entry.isRoot              = true;
         }
 
-        // Step 7 — Rule (6): □_s[¬(S ⊑ R)] → {□_s[⊤ ⊑ ∃R'.Aa], □_s[Aa ⊓ ∃R.Ab ⊑ ⊥], □_s[Aa ⊑ ∃S.Ab]}
+        // Step 7 — Rule (6): □_s[¬(S ⊑ R)] → {□_s[⊤ ⊑ ∃R'.Ca], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥], □_s[Ca ⊑ ∃S.Cb]}
         List<String> roleKeysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> roleSnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -210,14 +204,14 @@ public class StandpointPipeline {
             String S     = inner.substring(0, idx).trim();
             String R     = inner.substring(idx + "SubPropertyOf".length()).trim();
 
-            String freshAa = "FC_" + PlaceholderUtil.generateWithoutPrefix();
-            String freshAb = "FC_" + PlaceholderUtil.generateWithoutPrefix();
+            String freshCa = "FC_" + PlaceholderUtil.generateWithoutPrefix();
+            String freshCb = "FC_" + PlaceholderUtil.generateWithoutPrefix();
             String freshRp = "FR_" + PlaceholderUtil.generateWithoutPrefix();
 
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
-                    helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshAa))));
+                    helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCa))));
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
-                    helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshAb))));
+                    helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCb))));
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
                     helperDf.getOWLObjectProperty(IRI.create("http://standpoint.org/helper#" + freshRp))));
 
@@ -227,17 +221,23 @@ public class StandpointPipeline {
 
             PlaceholderSubstituter.PlaceholderEntry e1 = new PlaceholderSubstituter.PlaceholderEntry(
                     entry.operator, entry.standpoint,
-                    "Thing SubClassOf (" + freshRp + " some " + freshAa + ")");
+                    "Thing SubClassOf (" + freshRp + " some " + freshCa + ")");
             PlaceholderSubstituter.PlaceholderEntry e2 = new PlaceholderSubstituter.PlaceholderEntry(
                     entry.operator, entry.standpoint,
-                    "(" + freshAa + " and (" + R + " some " + freshAb + ")) SubClassOf owl:Nothing");
+                    "(" + freshCa + " and (" + R + " some " + freshCb + ")) SubClassOf owl:Nothing");
             PlaceholderSubstituter.PlaceholderEntry e3 = new PlaceholderSubstituter.PlaceholderEntry(
                     entry.operator, entry.standpoint,
-                    freshAa + " SubClassOf (" + S + " some " + freshAb + ")");
+                    freshCa + " SubClassOf (" + S + " some " + freshCb + ")");
 
-            e1.isRoot = true; e1.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-            e2.isRoot = true; e2.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-            e3.isRoot = true; e3.standpointAxiomType = PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e1.isRoot = true;
+            e1.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e2.isRoot = true;
+            e2.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
+            e3.isRoot = true;
+            e3.standpointAxiomType =
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
 
             normalisedPlaceholderMap.put(key1, e1);
             normalisedPlaceholderMap.put(key2, e2);
@@ -251,7 +251,7 @@ public class StandpointPipeline {
         }
         for (String key : roleKeysToRemove) normalisedPlaceholderMap.remove(key);
 
-        // Step 8 — Rule (5): □_s[¬R(a,b)] → {□_s[Aa(a)], □_s[Ab(b)], □_s[Aa ⊓ ∃R.Ab ⊑ ⊥]}
+        // Step 8 — Rule (5): □_s[¬R(a,b)] → {□_s[Ca(a)], □_s[Cb(b)], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥]}
         List<String> roleAssertionKeysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> roleAssertionSnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -262,46 +262,38 @@ public class StandpointPipeline {
                     || entry.standpointAxiomType
                     != PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_ASSERTION) continue;
 
-            // Parse "a r b" — extract role and individuals
-            String inner = entry.manchester;
+            String inner    = entry.manchester;
             String[] tokens = inner.trim().split("\\s+");
-            String a    = tokens[0];
-            String role = tokens[1];
-            String b    = tokens[2];
+            String a        = tokens[0];
+            String role     = tokens[1];
+            String b        = tokens[2];
 
             String freshCa = "FC_" + PlaceholderUtil.generateWithoutPrefix();
             String freshCb = "FC_" + PlaceholderUtil.generateWithoutPrefix();
 
-            // Register fresh concepts
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
                     helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCa))));
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
                     helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCb))));
 
-            // □_s[Ca(a)]
             String key1 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e1 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint, a + " Type " + freshCa);
+            String key2 = PlaceholderUtil.generate();
+            String key3 = PlaceholderUtil.generate();
+
+            PlaceholderSubstituter.PlaceholderEntry e1 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint, a + " Type " + freshCa);
+            PlaceholderSubstituter.PlaceholderEntry e2 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint, b + " Type " + freshCb);
+            PlaceholderSubstituter.PlaceholderEntry e3 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint,
+                    "(" + freshCa + " and (" + role + " some " + freshCb + ")) SubClassOf owl:Nothing");
+
             e1.isRoot = true;
             e1.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_ASSERTION;
-
-            // □_s[Cb(b)]
-            String key2 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e2 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint, b + " Type " + freshCb);
             e2.isRoot = true;
             e2.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_ASSERTION;
-
-            // □_s[Ca ⊓ ∃R.Cb ⊑ ⊥]
-            String key3 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e3 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint,
-                            "(" + freshCa + " and (" + role + " some " + freshCb + ")) SubClassOf owl:Nothing");
             e3.isRoot = true;
             e3.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
@@ -314,10 +306,7 @@ public class StandpointPipeline {
 
             roleAssertionKeysToRemove.add(e.getKey());
         }
-
-        for (String key : roleAssertionKeysToRemove) {
-            normalisedPlaceholderMap.remove(key);
-        }
+        for (String key : roleAssertionKeysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 9 — Rule (7): □_s[¬(Tra(R))] → {□_s[⊤ ⊑ ∃R'.Ca], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥], □_s[Ca ⊑ ∃R.∃R.Cb]}
         List<String> transitivityKeysToRemove = new ArrayList<>();
@@ -330,7 +319,6 @@ public class StandpointPipeline {
                     || entry.standpointAxiomType
                     != PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_TRANSITIVITY) continue;
 
-            // Extract role name from "Transitive R"
             String inner = entry.manchester;
             String role  = inner.replace("Transitive", "").trim();
 
@@ -338,7 +326,6 @@ public class StandpointPipeline {
             String freshCb = "FC_" + PlaceholderUtil.generateWithoutPrefix();
             String freshR  = "FR_" + PlaceholderUtil.generateWithoutPrefix();
 
-            // Register fresh concepts and role
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
                     helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCa))));
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
@@ -346,32 +333,26 @@ public class StandpointPipeline {
             helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
                     helperDf.getOWLObjectProperty(IRI.create("http://standpoint.org/helper#" + freshR))));
 
-            // □_s[⊤ ⊑ ∃R'.Ca]
             String key1 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e1 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint,
-                            "Thing SubClassOf (" + freshR + " some " + freshCa + ")");
+            String key2 = PlaceholderUtil.generate();
+            String key3 = PlaceholderUtil.generate();
+
+            PlaceholderSubstituter.PlaceholderEntry e1 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint,
+                    "Thing SubClassOf (" + freshR + " some " + freshCa + ")");
+            PlaceholderSubstituter.PlaceholderEntry e2 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint,
+                    "(" + freshCa + " and (" + role + " some " + freshCb + ")) SubClassOf owl:Nothing");
+            PlaceholderSubstituter.PlaceholderEntry e3 = new PlaceholderSubstituter.PlaceholderEntry(
+                    entry.operator, entry.standpoint,
+                    freshCa + " SubClassOf (" + role + " some (" + role + " some " + freshCb + "))");
+
             e1.isRoot = true;
             e1.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-
-            // □_s[Ca ⊓ ∃R.Cb ⊑ ⊥]
-            String key2 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e2 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint,
-                            "(" + freshCa + " and (" + role + " some " + freshCb + ")) SubClassOf owl:Nothing");
             e2.isRoot = true;
             e2.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
-
-            // □_s[Ca ⊑ ∃R.∃R.Cb]
-            String key3 = PlaceholderUtil.generate();
-            PlaceholderSubstituter.PlaceholderEntry e3 =
-                    new PlaceholderSubstituter.PlaceholderEntry(
-                            entry.operator, entry.standpoint,
-                            freshCa + " SubClassOf (" + role + " some (" + role + " some " + freshCb + "))");
             e3.isRoot = true;
             e3.standpointAxiomType =
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
@@ -386,32 +367,25 @@ public class StandpointPipeline {
 
             transitivityKeysToRemove.add(e.getKey());
         }
-
-        for (String key : transitivityKeysToRemove) {
-            normalisedPlaceholderMap.remove(key);
-        }
+        for (String key : transitivityKeysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 10 — Rule (8): ¬(s1 ∩ ... ∩ sn ⪯ u) → {v ⪯ s1, ..., v ⪯ sn, v ∩ u ⪯ 0}
         for (SharpeningStatement parsed : loadedSharpenings) {
             if (!parsed.isNegated) continue;
 
-            // Generate fresh standpoint v
             String freshV = "FS_" + PlaceholderUtil.generateWithoutPrefix();
 
-            // v ⪯ s1, ..., v ⪯ sn
             for (String si : parsed.lhsStandpoints) {
                 sharpenings.add(new SharpeningStatement(
                         Collections.singletonList(freshV), si));
             }
 
-            // v ∩ u ⪯ 0
             List<String> vAndU = new ArrayList<>();
             vAndU.add(freshV);
             vAndU.add(parsed.rhsStandpoint);
             sharpenings.add(new SharpeningStatement(vAndU, "0"));
 
-            System.out.println("Rule (8) applied:");
-            System.out.println("  Fresh standpoint: " + freshV);
+            System.out.println("Rule (8) applied — fresh standpoint: " + freshV);
         }
 
         // Step 11 — Rule (9): s1 ∩ ... ∩ sn ⪯ 0
@@ -420,11 +394,8 @@ public class StandpointPipeline {
         for (SharpeningStatement s : sharpenings) {
             if (s.isZero()) zeroSharpenings.add(s);
         }
-
-        // Remove zero sharpenings from main list — they get replaced by axioms
         sharpenings.removeAll(zeroSharpenings);
 
-        // Also process original loaded zero sharpenings
         for (SharpeningStatement parsed : loadedSharpenings) {
             if (!parsed.isNegated && parsed.isZero()) zeroSharpenings.add(parsed);
         }
@@ -432,14 +403,12 @@ public class StandpointPipeline {
         for (SharpeningStatement zero : zeroSharpenings) {
             List<String> freshConcepts = new ArrayList<>();
 
-            // □_si[⊤ ⊑ Ai] for each si
             for (String si : zero.lhsStandpoints) {
                 String freshCi = "FC_" + PlaceholderUtil.generateWithoutPrefix();
                 freshConcepts.add(freshCi);
 
                 helperManager.addAxiom(helperOntology, helperDf.getOWLDeclarationAxiom(
-                        helperDf.getOWLClass(
-                                IRI.create("http://standpoint.org/helper#" + freshCi))));
+                        helperDf.getOWLClass(IRI.create("http://standpoint.org/helper#" + freshCi))));
 
                 String key = PlaceholderUtil.generate();
                 PlaceholderSubstituter.PlaceholderEntry entry =
@@ -452,7 +421,6 @@ public class StandpointPipeline {
                 normalisedPlaceholderMap.put(key, entry);
             }
 
-            // □_*[A1 ⊓ ... ⊓ An ⊑ ⊥]
             String intersection = String.join(" and ", freshConcepts);
             String key = PlaceholderUtil.generate();
             PlaceholderSubstituter.PlaceholderEntry entry =
@@ -471,6 +439,24 @@ public class StandpointPipeline {
             if (!parsed.isNegated && !parsed.isZero()) {
                 sharpenings.add(parsed);
             }
+        }
+
+        // Step 12 — Final NNF loop + duality restoration
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (PlaceholderSubstituter.PlaceholderEntry entry : normalisedPlaceholderMap.values()) {
+                if (entry.standpointAxiomType
+                        == PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.NONE) {
+                    String nnf = standpointNormaliser.applyNNFToConceptExpression(entry.manchester);
+                    if (!nnf.equals(entry.manchester)) {
+                        entry.manchester = nnf;
+                        changed = true;
+                    }
+                }
+            }
+            PlaceholderRestorer dualityRestorer = new PlaceholderRestorer(normalisedPlaceholderMap);
+            if (dualityRestorer.restoreModalDuality()) changed = true;
         }
 
         return new PipelineResult(normalisedPlaceholderMap, sharpenings);

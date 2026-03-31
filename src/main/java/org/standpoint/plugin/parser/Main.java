@@ -12,7 +12,7 @@ import java.util.Map;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        File owlFile = new File("C:\\Users\\Omar\\Downloads\\testSharp.rdf");
+        File owlFile = new File("C:\\Users\\Omar\\Downloads\\test4554.rdf");
 
         // Load ontology from file
         OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
