@@ -18,7 +18,9 @@ import java.util.*;
 
 public class OntologyLoader {
 
-    private static final String STANDPOINT_LABEL_PROP_NAME = "standpointLabel";
+    private static final String STANDPOINT_AXIOM_PROP_NAME = "standpointAxiom";
+    private static final String STANDPOINT_SHARPENING_PROP_NAME = "standpointSharpening";
+    private static final String STANDPOINT_FORMULA_PROP_NAME = "standpointFormula";
 
     public static class AxiomWithLabel {
         public final OWLAxiom axiom;
@@ -37,7 +39,7 @@ public class OntologyLoader {
         OWLAnnotationProperty standpointLabelProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_LABEL_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_AXIOM_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -113,7 +115,7 @@ public class OntologyLoader {
         OWLAnnotationProperty sharpeningProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals("standpointSharpening"))
+                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_SHARPENING_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -136,7 +138,7 @@ public class OntologyLoader {
         OWLAnnotationProperty formulaProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals("standpointFormula"))
+                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_FORMULA_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -160,7 +162,7 @@ public class OntologyLoader {
         OWLAnnotationProperty labelProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals("standpointLabel"))
+                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_AXIOM_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -247,9 +249,9 @@ public class OntologyLoader {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new InputSource(new StringReader(wrapped)));
-            Node modal = doc.getDocumentElement().getFirstChild();
-            if (modal == null) return null;
-            Node idAttr = modal.getAttributes().getNamedItem("id");
+            Node axiom = doc.getDocumentElement().getFirstChild();
+            if (axiom == null) return null;
+            Node idAttr = axiom.getAttributes().getNamedItem("id");
             return idAttr != null ? idAttr.getNodeValue() : null;
         } catch (Exception e) {
             return null;

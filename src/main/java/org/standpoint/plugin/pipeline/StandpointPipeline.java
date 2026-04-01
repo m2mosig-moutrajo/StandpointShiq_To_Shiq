@@ -570,11 +570,10 @@ public class StandpointPipeline {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new InputSource(new StringReader(wrapped)));
-            Node modal = doc.getDocumentElement().getFirstChild();
-
+            Node axiom = doc.getDocumentElement().getFirstChild();
             // Get all child content as string
             StringBuilder sb = new StringBuilder();
-            NodeList children = modal.getChildNodes();
+            NodeList children = axiom.getChildNodes();
             for (int i = 0; i < children.getLength(); i++) {
                 Node child = children.item(i);
                 if (child.getNodeType() == Node.TEXT_NODE) {
