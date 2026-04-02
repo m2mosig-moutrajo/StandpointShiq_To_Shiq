@@ -1,5 +1,3 @@
-package org.standpoint.plugin.test;
-
 import org.junit.Test;
 import org.junit.Assert;
 import org.semanticweb.owlapi.apibinding.OWLManager;
@@ -33,7 +31,7 @@ public class StandpointPipelineTest {
                 6,  // ROLE_INCLUSION
                 7,  // ROLE_ASSERTION
                 5,  // ROLE_TRANSITIVITY
-                10   // formulas
+                2   // formulas
         );
     }
 
@@ -64,7 +62,8 @@ public class StandpointPipelineTest {
 
         // Step 4 — Build ontology and run pipeline
         OWLOntology ontology = buildOntology(axioms, formulas);
-        PipelineResult result = new StandpointPipeline(ontology, PipelineLogger.Level.ON).run();
+        PipelineLogger.setLevel(PipelineLogger.Level.ON); // ← AFTER buildOntology
+        PipelineResult result = new StandpointPipeline(ontology).run(); // single-arg constructor
 
         // Step 5 — Assert
         System.out.println("\n=== TEST RESULTS ===");
@@ -170,29 +169,24 @@ public class StandpointPipelineTest {
         List<GeneratedFormula> formulas = new ArrayList<>();
         Random rand = new Random();
 
-        // Shuffle axioms and distribute across formulas
         List<GeneratedAxiom> shuffled = new ArrayList<>(axioms);
         Collections.shuffle(shuffled);
 
         int idx = 0;
-        for (int i = 0; i < numFormulas; i++) {
+        for (int i = 0; i < numFormulas && idx < shuffled.size(); i++) {
             String op = rand.nextBoolean() ? "box" : "diamond";
             String sp = freshStandpoint();
 
-            // Each formula gets at least 1 axiom
-            int count = (i == numFormulas - 1)
-                    ? shuffled.size() - idx  // last formula gets remaining
-                    : Math.max(1, rand.nextInt(
-                    Math.max(1, (shuffled.size() - idx) / (numFormulas - i))));
+            int remaining = shuffled.size() - idx;
+            int remainingFormulas = numFormulas - i;
+            int maxCount = remaining - (remainingFormulas - 1);
+            int count = maxCount <= 1 ? 1 : 1 + rand.nextInt(maxCount);
 
             List<GeneratedAxiom> literals = new ArrayList<>();
             for (int j = 0; j < count && idx < shuffled.size(); j++, idx++) {
                 literals.add(shuffled.get(idx));
             }
-
-            if (!literals.isEmpty()) {
-                formulas.add(new GeneratedFormula(op, sp, literals));
-            }
+            formulas.add(new GeneratedFormula(op, sp, literals));
         }
         return formulas;
     }

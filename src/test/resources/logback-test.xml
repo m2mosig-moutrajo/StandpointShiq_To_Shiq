@@ -5,6 +5,8 @@
         </encoder>
     </appender>
 
+    <logger name="org.semanticweb.owlapi" level="OFF"/>
+
     <root level="ERROR">
         <appender-ref ref="STDOUT"/>
     </root>
