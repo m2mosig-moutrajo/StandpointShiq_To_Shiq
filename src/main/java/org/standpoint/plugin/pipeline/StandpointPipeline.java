@@ -10,6 +10,7 @@ import org.standpoint.plugin.parser.PlaceholderSubstituter;
 import org.standpoint.plugin.parser.PlaceholderSubstituter.Operator;
 import org.standpoint.plugin.parser.PlaceholderUtil;
 import org.standpoint.plugin.translation.SharpeningStatement;
+import org.standpoint.plugin.util.PipelineLogger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -28,8 +29,12 @@ public class StandpointPipeline {
         this.ontology = ontology;
     }
 
-    public PipelineResult run() throws Exception {
+    public StandpointPipeline(OWLOntology ontology, PipelineLogger.Level logLevel) {
+        this.ontology = ontology;
+        PipelineLogger.setLevel(logLevel);
+    }
 
+    public PipelineResult run() throws Exception {
         // Step 1 — load axiom labels map (id → AxiomWithLabel)
         Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap =
                 OntologyLoader.loadAxiomLabels(ontology);
@@ -38,19 +43,23 @@ public class StandpointPipeline {
         List<FormulaParser.ParsedFormula> formulas =
                 OntologyLoader.loadFormulas(ontology);
 
+        // Step 1.2 — load sharpenings
+        List<SharpeningStatement> loadedSharpenings =
+                OntologyLoader.loadSharpenings(ontology);
+
+        if (formulas.isEmpty() && loadedSharpenings.isEmpty()) return null;
+
         // Print original formulas before expansion
-        System.out.println("\n=== ORIGINAL FORMULAS ===\n");
+        PipelineLogger.log("\n=== ORIGINAL FORMULAS ===\n");
         for (FormulaParser.ParsedFormula formula : formulas) {
             StringBuilder sb = new StringBuilder();
             String symbol = "box".equals(formula.operator) ? "□" : "◇";
             sb.append(symbol).append("_").append(formula.standpoint).append("[");
-
             if (formula.literals.size() == 1) {
                 FormulaParser.ParsedLiteral lit = formula.literals.get(0);
                 if (lit.negated) sb.append("¬");
                 sb.append(lit.ref);
             } else {
-                // intersection
                 for (int i = 0; i < formula.literals.size(); i++) {
                     FormulaParser.ParsedLiteral lit = formula.literals.get(i);
                     if (lit.negated) sb.append("¬");
@@ -59,15 +68,23 @@ public class StandpointPipeline {
                 }
             }
             sb.append("]");
-            System.out.println(sb.toString());
+            PipelineLogger.log(sb.toString());
         }
-        System.out.println();
+        PipelineLogger.log("");
 
-        // Step 1.2 — load sharpenings
-        List<SharpeningStatement> loadedSharpenings =
-                OntologyLoader.loadSharpenings(ontology);
+        // Print axiom labels map
+        PipelineLogger.log("\n=== AXIOM LABELS (XML) ===\n");
+        for (Map.Entry<String, OntologyLoader.AxiomWithLabel> e : axiomLabelMap.entrySet()) {
+            PipelineLogger.log(e.getKey() + " → " + e.getValue().standpointLabels.get(0));
+        }
+        PipelineLogger.log("");
 
-        if (formulas.isEmpty() && loadedSharpenings.isEmpty()) return null;
+        PipelineLogger.log("\n=== AXIOM LABELS (READABLE) ===\n");
+        for (Map.Entry<String, OntologyLoader.AxiomWithLabel> e : axiomLabelMap.entrySet()) {
+            PipelineLogger.log(e.getKey() + " → " + formatAxiomLabel(
+                    e.getValue().standpointLabels.get(0)));
+        }
+        PipelineLogger.log("");
 
         // Step 1.3 — expand formulas into AxiomWithLabel list
         // Apply Rule (1) here for diamond formulas
@@ -84,16 +101,17 @@ public class StandpointPipeline {
                 String freshStandpoint = "FS_" + PlaceholderUtil.generateWithoutPrefix();
                 sharpenings.add(new SharpeningStatement(
                         Collections.singletonList(freshStandpoint), standpoint));
+                PipelineLogger.log("Rule (1) applied on formula ◇_" + standpoint
+                        + " → fresh standpoint: " + freshStandpoint + " ⪯ " + standpoint);
                 operator   = "box";
                 standpoint = freshStandpoint;
             }
 
-            // Expand each literal ref into AxiomWithLabel
             for (FormulaParser.ParsedLiteral literal : formula.literals) {
                 OntologyLoader.AxiomWithLabel axiomWithLabel =
                         axiomLabelMap.get(literal.ref);
                 if (axiomWithLabel == null) {
-                    System.out.println("WARNING: axiom ref '" + literal.ref + "' not found!");
+                    PipelineLogger.result("WARNING: axiom ref '" + literal.ref + "' not found!");
                     continue;
                 }
 
@@ -118,20 +136,18 @@ public class StandpointPipeline {
             }
         }
 
-        // Print expanded formulas for verification
-        System.out.println("\n=== EXPANDED FORMULAS ===\n");
+        // Print expanded formulas
+        PipelineLogger.log("\n=== EXPANDED FORMULAS (XML) ===\n");
         for (OntologyLoader.AxiomWithLabel axiomWithLabel : axiomsWithLabels) {
-            System.out.println(axiomWithLabel.standpointLabels.get(0));
+            PipelineLogger.log(axiomWithLabel.standpointLabels.get(0));
         }
-        System.out.println();
+        PipelineLogger.log("");
 
-        // Print expanded formulas in readable format
-        System.out.println("\n=== EXPANDED FORMULAS ===\n");
+        PipelineLogger.log("\n=== EXPANDED FORMULAS (READABLE) ===\n");
         for (OntologyLoader.AxiomWithLabel axiomWithLabel : axiomsWithLabels) {
-            String label = axiomWithLabel.standpointLabels.get(0);
-            System.out.println(formatFormula(label));
+            PipelineLogger.log(formatFormula(axiomWithLabel.standpointLabels.get(0)));
         }
-        System.out.println();
+        PipelineLogger.log("");
 
         // Step 2 — setup helper ontology for Manchester parsing
         OWLOntologyManager helperManager = OWLManager.createOWLOntologyManager();
@@ -150,8 +166,12 @@ public class StandpointPipeline {
         Map<String, PlaceholderSubstituter.PlaceholderEntry> normalisedPlaceholderMap =
                 new LinkedHashMap<>();
 
+        PipelineLogger.log("\n=== STEP 3: SUBSTITUTION + NORMALISATION ===\n");
+
         for (OntologyLoader.AxiomWithLabel axiomWithLabel : axiomsWithLabels) {
             for (String standpointLabel : axiomWithLabel.standpointLabels) {
+
+                PipelineLogger.log("Processing: " + standpointLabel);
 
                 PlaceholderSubstituter substituter = new PlaceholderSubstituter();
                 String rootPlaceholderKey = substituter.substitute(standpointLabel);
@@ -168,17 +188,22 @@ public class StandpointPipeline {
                 if (!rootEntry.isNegatedAxiom
                         && rootEntry.standpointAxiomType
                         == PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION) {
+                    String before = rootEntry.manchester;
                     rootEntry.manchester =
                             standpointNormaliser.normaliseSubClassOf(rootEntry.manchester);
+                    PipelineLogger.log("  Rule (11): " + before + " → " + rootEntry.manchester);
                 }
 
                 new PlaceholderRestorer(placeholderMap).restoreModalDuality();
 
+                PipelineLogger.log("  Root: " + rootPlaceholderKey + " → " + rootEntry);
                 normalisedPlaceholderMap.putAll(placeholderMap);
             }
         }
 
         // Step 4 — Rule (3): □_s[¬(C ⊑ D)] → {□_s[A ⊑ C], □_s[A ⊓ D ⊑ ⊥], □_s[⊤ ⊑ ∃R'.A]}
+        PipelineLogger.log("\n=== STEP 4: RULE (3) — NEGATED GCI ===\n");
+
         List<String> keysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> snapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -234,11 +259,18 @@ public class StandpointPipeline {
             e3.manchester = standpointNormaliser.normaliseSubClassOf(e3.manchester);
 
             keysToRemove.add(e.getKey());
+
+            PipelineLogger.log("Rule (3) on " + e.getKey() + " [" + C + " ⊑ " + D + "]:");
+            PipelineLogger.log("  → " + key1 + ": " + e1);
+            PipelineLogger.log("  → " + key2 + ": " + e2);
+            PipelineLogger.log("  → " + key3 + ": " + e3);
         }
         for (String key : keysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 5 — Rule (4): □_s[¬(C(a))] → □_s[(¬C)(a)]
         //           Rule (10): □_s[C(a)] → □_s[NNF(C)(a)]
+        PipelineLogger.log("\n=== STEP 5: RULES (4)(10) — ASSERTIONS ===\n");
+
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> assertionSnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
 
@@ -257,8 +289,12 @@ public class StandpointPipeline {
             String newConcept;
             if (entry.isNegatedAxiom) {
                 newConcept = "not (" + concept + ")";
+                PipelineLogger.log("Rule (4) on " + e.getKey() + ": " + inner
+                        + " → " + individual + " Type " + newConcept);
             } else {
                 newConcept = standpointNormaliser.applyNNFToConceptExpression(concept);
+                PipelineLogger.log("Rule (10) on " + e.getKey() + ": " + inner
+                        + " → " + individual + " Type " + newConcept);
             }
 
             entry.manchester          = individual + " Type " + newConcept;
@@ -269,6 +305,8 @@ public class StandpointPipeline {
         }
 
         // Step 6 — Rule (6): □_s[¬(S ⊑ R)] → {□_s[⊤ ⊑ ∃R'.Ca], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥], □_s[Ca ⊑ ∃S.Cb]}
+        PipelineLogger.log("\n=== STEP 6: RULE (6) — NEGATED ROLE INCLUSION ===\n");
+
         List<String> roleKeysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> roleSnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -328,10 +366,17 @@ public class StandpointPipeline {
             e3.manchester = standpointNormaliser.normaliseSubClassOf(e3.manchester);
 
             roleKeysToRemove.add(e.getKey());
+
+            PipelineLogger.log("Rule (6) on " + e.getKey() + " [" + S + " ⊑ " + R + "]:");
+            PipelineLogger.log("  → " + key1 + ": " + e1);
+            PipelineLogger.log("  → " + key2 + ": " + e2);
+            PipelineLogger.log("  → " + key3 + ": " + e3);
         }
         for (String key : roleKeysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 7 — Rule (5): □_s[¬R(a,b)] → {□_s[Ca(a)], □_s[Cb(b)], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥]}
+        PipelineLogger.log("\n=== STEP 7: RULE (5) — NEGATED ROLE ASSERTION ===\n");
+
         List<String> roleAssertionKeysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> roleAssertionSnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -385,10 +430,18 @@ public class StandpointPipeline {
             e3.manchester = standpointNormaliser.normaliseSubClassOf(e3.manchester);
 
             roleAssertionKeysToRemove.add(e.getKey());
+
+            PipelineLogger.log("Rule (5) on " + e.getKey()
+                    + " [" + a + " " + role + " " + b + "]:");
+            PipelineLogger.log("  → " + key1 + ": " + e1);
+            PipelineLogger.log("  → " + key2 + ": " + e2);
+            PipelineLogger.log("  → " + key3 + ": " + e3);
         }
         for (String key : roleAssertionKeysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 8 — Rule (7): □_s[¬(Tra(R))] → {□_s[⊤ ⊑ ∃R'.Ca], □_s[Ca ⊓ ∃R.Cb ⊑ ⊥], □_s[Ca ⊑ ∃R.∃R.Cb]}
+        PipelineLogger.log("\n=== STEP 8: RULE (7) — NEGATED TRANSITIVITY ===\n");
+
         List<String> transitivityKeysToRemove = new ArrayList<>();
         List<Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry>> transitivitySnapshot =
                 new ArrayList<>(normalisedPlaceholderMap.entrySet());
@@ -446,10 +499,17 @@ public class StandpointPipeline {
             e3.manchester = standpointNormaliser.normaliseSubClassOf(e3.manchester);
 
             transitivityKeysToRemove.add(e.getKey());
+
+            PipelineLogger.log("Rule (7) on " + e.getKey() + " [Tra(" + role + ")]:");
+            PipelineLogger.log("  → " + key1 + ": " + e1);
+            PipelineLogger.log("  → " + key2 + ": " + e2);
+            PipelineLogger.log("  → " + key3 + ": " + e3);
         }
         for (String key : transitivityKeysToRemove) normalisedPlaceholderMap.remove(key);
 
         // Step 9 — Rule (8): ¬(s1 ∩ ... ∩ sn ⪯ u) → {v ⪯ s1, ..., v ⪯ sn, v ∩ u ⪯ 0}
+        PipelineLogger.log("\n=== STEP 9: RULE (8) — NEGATED SHARPENING ===\n");
+
         for (SharpeningStatement parsed : loadedSharpenings) {
             if (!parsed.isNegated) continue;
 
@@ -458,6 +518,7 @@ public class StandpointPipeline {
             for (String si : parsed.lhsStandpoints) {
                 sharpenings.add(new SharpeningStatement(
                         Collections.singletonList(freshV), si));
+                PipelineLogger.log("  → " + freshV + " ⪯ " + si);
             }
 
             List<String> vAndU = new ArrayList<>();
@@ -465,10 +526,13 @@ public class StandpointPipeline {
             vAndU.add(parsed.rhsStandpoint);
             sharpenings.add(new SharpeningStatement(vAndU, "0"));
 
-            System.out.println("Rule (8) applied — fresh standpoint: " + freshV);
+            PipelineLogger.log("Rule (8) applied — fresh standpoint: " + freshV);
+            PipelineLogger.log("  → " + freshV + " ∩ " + parsed.rhsStandpoint + " ⪯ 0");
         }
 
         // Step 10 — Rule (9): s1 ∩ ... ∩ sn ⪯ 0
+        PipelineLogger.log("\n=== STEP 10: RULE (9) — ZERO SHARPENING ===\n");
+
         List<SharpeningStatement> zeroSharpenings = new ArrayList<>();
         for (SharpeningStatement s : sharpenings) {
             if (s.isZero()) zeroSharpenings.add(s);
@@ -481,6 +545,8 @@ public class StandpointPipeline {
 
         for (SharpeningStatement zero : zeroSharpenings) {
             List<String> freshConcepts = new ArrayList<>();
+
+            PipelineLogger.log("Rule (9) on: " + zero);
 
             for (String si : zero.lhsStandpoints) {
                 String freshCi = "FC_" + PlaceholderUtil.generateWithoutPrefix();
@@ -498,6 +564,8 @@ public class StandpointPipeline {
                         PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
                 entry.manchester = standpointNormaliser.normaliseSubClassOf(entry.manchester);
                 normalisedPlaceholderMap.put(key, entry);
+
+                PipelineLogger.log("  → " + key + ": □_" + si + "[⊤ ⊑ " + freshCi + "]");
             }
 
             String intersection = String.join(" and ", freshConcepts);
@@ -511,31 +579,61 @@ public class StandpointPipeline {
                     PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION;
             entry.manchester = standpointNormaliser.normaliseSubClassOf(entry.manchester);
             normalisedPlaceholderMap.put(key, entry);
+
+            PipelineLogger.log("  → " + key + ": □_*[" + intersection + " ⊑ ⊥]");
         }
 
         // Add normal sharpenings from loaded
         for (SharpeningStatement parsed : loadedSharpenings) {
             if (!parsed.isNegated && !parsed.isZero()) {
                 sharpenings.add(parsed);
+                PipelineLogger.log("Normal sharpening added: " + parsed);
             }
         }
 
         // Step 11 — Final NNF loop + duality restoration
+        PipelineLogger.log("\n=== STEP 11: FINAL NNF LOOP + DUALITY RESTORATION ===\n");
+
         boolean changed = true;
+        int iteration = 0;
         while (changed) {
             changed = false;
+            iteration++;
             for (PlaceholderSubstituter.PlaceholderEntry entry : normalisedPlaceholderMap.values()) {
                 if (entry.standpointAxiomType
                         == PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.NONE) {
+                    String before = entry.manchester;
                     String nnf = standpointNormaliser.applyNNFToConceptExpression(entry.manchester);
                     if (!nnf.equals(entry.manchester)) {
                         entry.manchester = nnf;
                         changed = true;
+                        PipelineLogger.log("  NNF iteration " + iteration
+                                + ": " + before + " → " + nnf);
                     }
                 }
             }
             PlaceholderRestorer dualityRestorer = new PlaceholderRestorer(normalisedPlaceholderMap);
-            if (dualityRestorer.restoreModalDuality()) changed = true;
+            if (dualityRestorer.restoreModalDuality()) {
+                changed = true;
+                PipelineLogger.log("  Duality restored in iteration " + iteration);
+            }
+        }
+        PipelineLogger.log("NNF loop completed in " + iteration + " iteration(s)");
+
+        // Print final results
+        PipelineLogger.result("\n=== FULL NORMALISED PLACEHOLDER MAP ===\n");
+        for (Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry> e :
+                normalisedPlaceholderMap.entrySet()) {
+            PipelineLogger.result(e.getKey() + " → " + e.getValue());
+        }
+
+        PipelineLogger.result("\n=== SHARPENINGS ===\n");
+        if (sharpenings.isEmpty()) {
+            PipelineLogger.result("(none)");
+        } else {
+            for (SharpeningStatement s : sharpenings) {
+                PipelineLogger.result(s.toString());
+            }
         }
 
         return new PipelineResult(normalisedPlaceholderMap, sharpenings);
@@ -648,5 +746,29 @@ public class StandpointPipeline {
 
         return result;
     }
+    private String formatAxiomLabel(String xml) {
+        try {
+            String wrapped = "<root>" + xml.trim() + "</root>";
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(new InputSource(new StringReader(wrapped)));
+            Node axiom = doc.getDocumentElement().getFirstChild();
 
+            // Get inner content of <axiom id="...">
+            StringBuilder sb = new StringBuilder();
+            NodeList children = axiom.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node child = children.item(i);
+                if (child.getNodeType() == Node.TEXT_NODE) {
+                    sb.append(child.getTextContent().trim());
+                } else if (child.getNodeType() == Node.ELEMENT_NODE
+                        && child.getNodeName().equals("modal")) {
+                    sb.append(formatNode(child));
+                }
+            }
+            return sb.toString().trim();
+        } catch (Exception e) {
+            return xml;
+        }
+    }
 }

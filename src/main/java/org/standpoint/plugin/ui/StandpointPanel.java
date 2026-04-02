@@ -4,6 +4,7 @@ import org.protege.editor.owl.model.OWLModelManager;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.pipeline.PipelineResult;
 import org.standpoint.plugin.pipeline.StandpointPipeline;
+import org.standpoint.plugin.util.PipelineLogger;
 
 import javax.swing.*;
 import java.awt.*;
@@ -48,7 +49,7 @@ public class StandpointPanel extends JPanel {
                 return;
             }
 
-            StandpointPipeline pipeline = new StandpointPipeline(ontology);
+            StandpointPipeline pipeline = new StandpointPipeline(ontology, PipelineLogger.Level.OFF);
             PipelineResult result = pipeline.run();
 
             if (result == null || result.isEmpty()) {

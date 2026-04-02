@@ -201,22 +201,29 @@ public class OntologyLoader {
         // Transitivity axioms
         for (OWLTransitiveObjectPropertyAxiom axiom :
                 ontology.getAxioms(AxiomType.TRANSITIVE_OBJECT_PROPERTY)) {
+
+            // Approach 1 — annotation directly on axiom (programmatic / test approach)
+            extractAxiomLabel(axiom, labelProp,
+                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_TRANSITIVITY,
+                    axiomMap);
+
+            // Approach 2 — annotation on property itself (Protégé UI approach)
             OWLObjectProperty property = axiom.getProperty().asOWLObjectProperty();
-            List<String> labels = new ArrayList<>();
             for (OWLAnnotationAssertionAxiom annAxiom :
                     ontology.getAnnotationAssertionAxioms(property.getIRI())) {
-                if (annAxiom.getProperty().getIRI().getShortForm()
-                        .equals("standpointLabel")) {
+                if (annAxiom.getProperty().equals(labelProp)) {
                     String val = annAxiom.getValue().asLiteral()
                             .transform(l -> l.getLiteral()).orNull();
-                    if (val != null) labels.add(val);
+                    if (val != null) {
+                        String id = extractId(val.trim());
+                        if (id != null && !axiomMap.containsKey(id)) {
+                            axiomMap.put(id, new AxiomWithLabel(axiom,
+                                    Collections.singletonList(val.trim()),
+                                    PlaceholderSubstituter.PlaceholderEntry
+                                            .StandpointAxiomType.ROLE_TRANSITIVITY));
+                        }
+                    }
                 }
-            }
-            for (String label : labels) {
-                String id = extractId(label);
-                if (id != null) axiomMap.put(id, new AxiomWithLabel(axiom,
-                        Collections.singletonList(label),
-                        PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_TRANSITIVITY));
             }
         }
 

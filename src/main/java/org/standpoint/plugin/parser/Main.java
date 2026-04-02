@@ -5,6 +5,7 @@ import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.pipeline.PipelineResult;
 import org.standpoint.plugin.pipeline.StandpointPipeline;
 import org.standpoint.plugin.translation.SharpeningStatement;
+import org.standpoint.plugin.util.PipelineLogger;
 
 import java.io.File;
 import java.util.Map;
@@ -19,7 +20,7 @@ public class Main {
         OWLOntology ontology = manager.loadOntologyFromOntologyDocument(owlFile);
 
         // Run pipeline
-        PipelineResult result = new StandpointPipeline(ontology).run();
+        PipelineResult result = new StandpointPipeline(ontology, PipelineLogger.Level.ON).run();
         if (result == null) return;
 
         // Print results
