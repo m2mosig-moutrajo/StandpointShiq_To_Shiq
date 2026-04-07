@@ -47,6 +47,16 @@ public class StandpointPipeline {
         List<SharpeningStatement> loadedSharpenings =
                 OntologyLoader.loadSharpenings(ontology);
 
+        PipelineLogger.log("\n=== LOADED SHARPENINGS ===\n");
+        if (loadedSharpenings.isEmpty()) {
+            PipelineLogger.log("(none)");
+        } else {
+            for (SharpeningStatement s : loadedSharpenings) {
+                PipelineLogger.log(s.toString());
+            }
+        }
+        PipelineLogger.log("");
+
         if (formulas.isEmpty() && loadedSharpenings.isEmpty()) return null;
 
         // Print original formulas before expansion
@@ -746,6 +756,7 @@ public class StandpointPipeline {
 
         return result;
     }
+
     private String formatAxiomLabel(String xml) {
         try {
             String wrapped = "<root>" + xml.trim() + "</root>";

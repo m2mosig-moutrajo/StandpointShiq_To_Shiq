@@ -8,6 +8,8 @@ import org.standpoint.plugin.util.PipelineLogger;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.Map;
 
 public class StandpointPanel extends JPanel {
@@ -15,6 +17,7 @@ public class StandpointPanel extends JPanel {
     private final JButton buttonTranslate;
     private final JButton buttonClear;
     private final JTextArea textAreaLog;
+    private final JCheckBox checkVerbose;
     private final OWLModelManager modelManager;
 
     public StandpointPanel(OWLModelManager modelManager) {
@@ -22,7 +25,10 @@ public class StandpointPanel extends JPanel {
         setLayout(new BorderLayout());
 
         buttonTranslate = new JButton("Translate");
-        buttonClear = new JButton("Clear");
+        buttonClear     = new JButton("Clear");
+        checkVerbose    = new JCheckBox("Translation Log");
+        checkVerbose.setSelected(false);
+
         textAreaLog = new JTextArea();
         textAreaLog.setEditable(false);
         textAreaLog.setFont(new Font("Monospaced", Font.PLAIN, 12));
@@ -30,6 +36,7 @@ public class StandpointPanel extends JPanel {
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.add(buttonTranslate);
         topPanel.add(buttonClear);
+        topPanel.add(checkVerbose);
 
         add(topPanel, BorderLayout.NORTH);
         add(new JScrollPane(textAreaLog), BorderLayout.CENTER);
@@ -49,8 +56,36 @@ public class StandpointPanel extends JPanel {
                 return;
             }
 
-            StandpointPipeline pipeline = new StandpointPipeline(ontology, PipelineLogger.Level.OFF);
+            // Redirect System.out to textAreaLog if verbose
+            PrintStream originalOut = System.out;
+            if (checkVerbose.isSelected()) {
+                PrintStream uiStream = new PrintStream(new OutputStream() {
+                    private final StringBuilder line = new StringBuilder();
+
+                    @Override
+                    public void write(int b) {
+                        char c = (char) b;
+                        if (c == '\n') {
+                            final String text = line.toString();
+                            SwingUtilities.invokeLater(() -> textAreaLog.append(text + "\n"));
+                            line.setLength(0);
+                        } else {
+                            line.append(c);
+                        }
+                    }
+                });
+                System.setOut(uiStream);
+            }
+
+            PipelineLogger.Level logLevel = checkVerbose.isSelected()
+                    ? PipelineLogger.Level.ON
+                    : PipelineLogger.Level.OFF;
+
+            StandpointPipeline pipeline = new StandpointPipeline(ontology, logLevel);
             PipelineResult result = pipeline.run();
+
+            // Restore System.out
+            System.setOut(originalOut);
 
             if (result == null || result.isEmpty()) {
                 textAreaLog.append("No results.\n");

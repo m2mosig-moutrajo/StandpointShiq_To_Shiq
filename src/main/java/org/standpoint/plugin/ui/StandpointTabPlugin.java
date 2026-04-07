@@ -3,7 +3,6 @@ package org.standpoint.plugin.ui;
 import org.protege.editor.owl.ui.view.AbstractOWLViewComponent;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.parser.PlaceholderSubstituter;
-import org.standpoint.plugin.translation.OntologyExporter;
 
 import javax.swing.*;
 import java.awt.*;

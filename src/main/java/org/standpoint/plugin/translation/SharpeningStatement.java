@@ -106,7 +106,10 @@ public class SharpeningStatement {
 
     @Override
     public String toString() {
-        String base = String.join(" AND ", lhsStandpoints) + " <= " + rhsStandpoint;
-        return isNegated ? "NOT(" + base + ")" : base;
+        String lhs = lhsStandpoints.size() == 1
+                ? lhsStandpoints.get(0)
+                : String.join(" ∩ ", lhsStandpoints);
+        String base = lhs + " ⪯ " + rhsStandpoint;
+        return isNegated ? "¬(" + base + ")" : base;
     }
 }

@@ -22,21 +22,5 @@ public class Main {
         // Run pipeline
         PipelineResult result = new StandpointPipeline(ontology, PipelineLogger.Level.ON).run();
         if (result == null) return;
-
-        // Print results
-        System.out.println("\n=== FULL NORMALISED PLACEHOLDER MAP ===\n");
-        for (Map.Entry<String, PlaceholderSubstituter.PlaceholderEntry> e :
-                result.normalisedPlaceholderMap.entrySet()) {
-            System.out.println(e.getKey() + " → " + e.getValue());
-        }
-
-        System.out.println("\n=== SHARPENINGS ===\n");
-        if (result.sharpenings.isEmpty()) {
-            System.out.println("(none)");
-        } else {
-            for (SharpeningStatement s : result.sharpenings) {
-                System.out.println(s);
-            }
-        }
     }
 }
