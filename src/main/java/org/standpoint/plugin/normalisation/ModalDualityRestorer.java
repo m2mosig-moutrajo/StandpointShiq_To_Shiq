@@ -1,22 +1,24 @@
 package org.standpoint.plugin.normalisation;
 
-import org.standpoint.plugin.parser.PlaceholderSubstituter.PlaceholderEntry;
-import org.standpoint.plugin.parser.PlaceholderSubstituter.Operator;
-import org.standpoint.plugin.parser.PlaceholderUtil;
+import org.standpoint.plugin.model.Operator;
+import org.standpoint.plugin.model.ModalPlaceholder;
+import org.standpoint.plugin.util.PlaceholderCounter;
 
 import java.util.Map;
 
-public class PlaceholderRestorer {
+public class ModalDualityRestorer {
 
-    private final Map<String, PlaceholderEntry> placeholderMap;
+    private final Map<String, ModalPlaceholder> placeholderMap;
+    private final PlaceholderCounter placeholderCounter;
 
-    public PlaceholderRestorer(Map<String, PlaceholderEntry> placeholderMap) {
+    public ModalDualityRestorer(Map<String, ModalPlaceholder> placeholderMap, PlaceholderCounter placeholderCounter) {
         this.placeholderMap = placeholderMap;
+        this.placeholderCounter = placeholderCounter;
     }
     // Scans all entries and resolves any not(SP_x) patterns by applying modal duality
     public boolean restoreModalDuality() {
         boolean anyChanged = false;
-        for (PlaceholderEntry entry : placeholderMap.values()) {
+        for (ModalPlaceholder entry : placeholderMap.values()) {
             String restored = resolveDualityInExpression(entry.manchester);
             if (!restored.equals(entry.manchester)) {
                 entry.manchester = restored;
@@ -32,14 +34,14 @@ public class PlaceholderRestorer {
 
         while (i < manchesterExpr.length()) {
             // Look for "not (SP_...)" pattern
-            if (manchesterExpr.startsWith("not (" + PlaceholderUtil.PREFIX, i)) {
+            if (manchesterExpr.startsWith("not (" + PlaceholderCounter.PREFIX, i)) {
                 int parenOpen  = manchesterExpr.indexOf('(', i + 4);
                 int parenClose = findMatchingParen(manchesterExpr, parenOpen);
                 String innerToken = manchesterExpr.substring(parenOpen + 1, parenClose).trim();
 
-                if (PlaceholderUtil.isPlaceholder(innerToken) && placeholderMap.containsKey(innerToken)) {
+                if (placeholderCounter.isPlaceholder(innerToken) && placeholderMap.containsKey(innerToken)) {
                     // Apply duality: flip operator of target entry, push not inside
-                    PlaceholderEntry targetEntry = placeholderMap.get(innerToken);
+                    ModalPlaceholder targetEntry = placeholderMap.get(innerToken);
                     applyModalDuality(targetEntry);
                     // Replace "not (SP_x)" with just "SP_x"
                     result.append(innerToken);
@@ -58,7 +60,7 @@ public class PlaceholderRestorer {
         return result.toString();
     }
     // Flips box↔diamond and pushes negation inside (modal duality law)
-    private void applyModalDuality(PlaceholderEntry entry) {
+    private void applyModalDuality(ModalPlaceholder entry) {
         Operator dualOperator = entry.operator == Operator.BOX
                 ? Operator.DIAMOND
                 : Operator.BOX;

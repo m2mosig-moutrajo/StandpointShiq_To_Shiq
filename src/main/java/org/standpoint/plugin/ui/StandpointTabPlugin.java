@@ -1,14 +1,8 @@
 package org.standpoint.plugin.ui;
 
 import org.protege.editor.owl.ui.view.AbstractOWLViewComponent;
-import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.parser.PlaceholderSubstituter;
 
-import javax.swing.*;
 import java.awt.*;
-import java.io.File;
-import java.util.Map;
-import java.util.Set;
 
 public class StandpointTabPlugin extends AbstractOWLViewComponent {
 

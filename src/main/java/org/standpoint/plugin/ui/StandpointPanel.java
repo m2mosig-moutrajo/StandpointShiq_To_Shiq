@@ -2,6 +2,7 @@ package org.standpoint.plugin.ui;
 
 import org.protege.editor.owl.model.OWLModelManager;
 import org.semanticweb.owlapi.model.OWLOntology;
+import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.pipeline.PipelineResult;
 import org.standpoint.plugin.pipeline.StandpointPipeline;
 import org.standpoint.plugin.util.PipelineLogger;
@@ -93,7 +94,7 @@ public class StandpointPanel extends JPanel {
             }
 
             textAreaLog.append("=== NORMALISED MAP ===\n");
-            for (Map.Entry<String, org.standpoint.plugin.parser.PlaceholderSubstituter.PlaceholderEntry> e :
+            for (Map.Entry<String, ModalPlaceholder> e :
                     result.normalisedPlaceholderMap.entrySet()) {
                 textAreaLog.append(e.getKey() + " → " + e.getValue() + "\n");
             }

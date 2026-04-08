@@ -1,18 +1,15 @@
 package org.standpoint.plugin.loader;
 
-import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
-import org.semanticweb.owlapi.search.EntitySearcher;
-import org.standpoint.plugin.parser.FormulaParser;
-import org.standpoint.plugin.parser.PlaceholderSubstituter;
-import org.standpoint.plugin.translation.SharpeningStatement;
+import org.standpoint.plugin.model.StandpointAxiomType;
+import org.standpoint.plugin.model.Sharpening;
+import org.standpoint.plugin.util.PipelineLogger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.File;
 import java.io.StringReader;
 import java.util.*;
 
@@ -25,92 +22,19 @@ public class OntologyLoader {
     public static class AxiomWithLabel {
         public final OWLAxiom axiom;
         public final List<String> standpointLabels;
-        public final PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType axiomType;
+        public final StandpointAxiomType axiomType;
 
         public AxiomWithLabel(OWLAxiom axiom, List<String> standpointLabels,
-                              PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType axiomType) {
+                              StandpointAxiomType axiomType) {
             this.axiom = axiom;
             this.standpointLabels = standpointLabels;
             this.axiomType = axiomType;
         }
     }
 
-    public static List<AxiomWithLabel> loadAxiomsWithLabels(OWLOntology ontology) {
-        OWLAnnotationProperty standpointLabelProp = ontology
-                .getAnnotationPropertiesInSignature()
-                .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_AXIOM_PROP_NAME))
-                .findFirst()
-                .orElse(null);
 
-        List<AxiomWithLabel> result = new ArrayList<>();
-
-        // GCI axioms
-        for (OWLSubClassOfAxiom axiom : ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
-            List<String> labels = readAllStandpointLabels(axiom, standpointLabelProp);
-            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION));
-        }
-
-        // Assertion axioms
-        for (OWLClassAssertionAxiom axiom : ontology.getAxioms(AxiomType.CLASS_ASSERTION)) {
-            List<String> labels = readAllStandpointLabels(axiom, standpointLabelProp);
-            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_ASSERTION));
-        }
-
-        // Role inclusion axioms
-        for (OWLSubObjectPropertyOfAxiom axiom : ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
-            List<String> labels = readAllStandpointLabels(axiom, standpointLabelProp);
-            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION));
-        }
-
-        // Role assertion axioms
-        for (OWLObjectPropertyAssertionAxiom axiom : ontology.getAxioms(AxiomType.OBJECT_PROPERTY_ASSERTION)) {
-            List<String> labels = readAllStandpointLabels(axiom, standpointLabelProp);
-            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_ASSERTION));
-        }
-
-        // Transitivity axioms
-        for (OWLTransitiveObjectPropertyAxiom axiom :
-                ontology.getAxioms(AxiomType.TRANSITIVE_OBJECT_PROPERTY)) {
-            // Get the property from the axiom
-            OWLObjectProperty property = axiom.getProperty().asOWLObjectProperty();
-
-            // Read standpointLabel from the property entity annotations
-            List<String> labels = new ArrayList<>();
-            for (OWLAnnotation ann : EntitySearcher.getAnnotations(property, ontology, standpointLabelProp)) {
-                String val = ann.getValue().asLiteral()
-                        .transform(l -> l.getLiteral()).orNull();
-                if (val != null) labels.add(val);
-            }
-
-            if (!labels.isEmpty()) result.add(new AxiomWithLabel(axiom, labels,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_TRANSITIVITY));
-        }
-
-        System.out.println("Loaded " + result.size() + " axiom(s) with standpointLabel");
-        return result;
-    }
-
-    private static List<String> readAllStandpointLabels(OWLAxiom axiom,
-                                                        OWLAnnotationProperty standpointLabelProp) {
-        List<String> labels = new ArrayList<>();
-        if (standpointLabelProp == null) return labels;
-        for (OWLAnnotation ann : axiom.getAnnotations()) {
-            if (ann.getProperty().equals(standpointLabelProp)) {
-                String val = ann.getValue().asLiteral()
-                        .transform(l -> l.getLiteral()).orNull();
-                if (val != null) labels.add(val);
-            }
-        }
-        return labels;
-    }
-
-    public static List<SharpeningStatement> loadSharpenings(OWLOntology ontology) {
-        List<SharpeningStatement> sharpenings = new ArrayList<>();
+    public static List<Sharpening> loadSharpenings(OWLOntology ontology) {
+        List<Sharpening> sharpenings = new ArrayList<>();
 
         OWLAnnotationProperty sharpeningProp = ontology
                 .getAnnotationPropertiesInSignature()
@@ -125,7 +49,7 @@ public class OntologyLoader {
             if (ann.getProperty().equals(sharpeningProp)) {
                 String val = ann.getValue().asLiteral()
                         .transform(l -> l.getLiteral()).orNull();
-                if (val != null) sharpenings.add(SharpeningStatement.parse(val.trim()));
+                if (val != null) sharpenings.add(Sharpening.parse(val.trim()));
             }
         }
 
@@ -152,7 +76,7 @@ public class OntologyLoader {
             }
         }
 
-        System.out.println("Loaded " + formulas.size() + " formula(s)");
+        PipelineLogger.log("Loaded " + formulas.size() + " formula(s)");
         return formulas;
     }
     // Load standpointLabel annotations from axioms — returns id → modal content map
@@ -171,14 +95,14 @@ public class OntologyLoader {
         // GCI axioms
         for (OWLSubClassOfAxiom axiom : ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
             extractAxiomLabel(axiom, labelProp,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_INCLUSION,
+                    StandpointAxiomType.CONCEPT_INCLUSION,
                     axiomMap);
         }
 
         // Assertion axioms
         for (OWLClassAssertionAxiom axiom : ontology.getAxioms(AxiomType.CLASS_ASSERTION)) {
             extractAxiomLabel(axiom, labelProp,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.CONCEPT_ASSERTION,
+                    StandpointAxiomType.CONCEPT_ASSERTION,
                     axiomMap);
         }
 
@@ -186,7 +110,7 @@ public class OntologyLoader {
         for (OWLSubObjectPropertyOfAxiom axiom :
                 ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
             extractAxiomLabel(axiom, labelProp,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_INCLUSION,
+                    StandpointAxiomType.ROLE_INCLUSION,
                     axiomMap);
         }
 
@@ -194,7 +118,7 @@ public class OntologyLoader {
         for (OWLObjectPropertyAssertionAxiom axiom :
                 ontology.getAxioms(AxiomType.OBJECT_PROPERTY_ASSERTION)) {
             extractAxiomLabel(axiom, labelProp,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_ASSERTION,
+                    StandpointAxiomType.ROLE_ASSERTION,
                     axiomMap);
         }
 
@@ -204,7 +128,7 @@ public class OntologyLoader {
 
             // Approach 1 — annotation directly on axiom (programmatic / test approach)
             extractAxiomLabel(axiom, labelProp,
-                    PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType.ROLE_TRANSITIVITY,
+                    StandpointAxiomType.ROLE_TRANSITIVITY,
                     axiomMap);
 
             // Approach 2 — annotation on property itself (Protégé UI approach)
@@ -219,21 +143,20 @@ public class OntologyLoader {
                         if (id != null && !axiomMap.containsKey(id)) {
                             axiomMap.put(id, new AxiomWithLabel(axiom,
                                     Collections.singletonList(val.trim()),
-                                    PlaceholderSubstituter.PlaceholderEntry
-                                            .StandpointAxiomType.ROLE_TRANSITIVITY));
+                                    StandpointAxiomType.ROLE_TRANSITIVITY));
                         }
                     }
                 }
             }
         }
 
-        System.out.println("Loaded " + axiomMap.size() + " axiom label(s)");
+        PipelineLogger.log("Loaded " + axiomMap.size() + " axiom label(s)");
         return axiomMap;
     }
 
     private static void extractAxiomLabel(OWLAxiom axiom,
                                           OWLAnnotationProperty labelProp,
-                                          PlaceholderSubstituter.PlaceholderEntry.StandpointAxiomType axiomType,
+                                          StandpointAxiomType axiomType,
                                           Map<String, AxiomWithLabel> axiomMap) {
         for (OWLAnnotation ann : axiom.getAnnotations()) {
             if (ann.getProperty().equals(labelProp)) {

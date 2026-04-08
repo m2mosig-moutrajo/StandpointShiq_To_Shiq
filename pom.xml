@@ -52,7 +52,7 @@
           <instructions>
             <Bundle-SymbolicName>org.standpoint.plugin;singleton:=true</Bundle-SymbolicName>
             <Bundle-Version>1.0.0</Bundle-Version>
-            <Bundle-Activator>org.standpoint.plugin.StandpointPluginActivator</Bundle-Activator>
+            <Bundle-Activator>org.standpoint.plugin.ui.StandpointPluginActivator</Bundle-Activator>
             <Import-Package>
               org.protege.editor.owl.ui,
               org.protege.editor.owl.ui.view,

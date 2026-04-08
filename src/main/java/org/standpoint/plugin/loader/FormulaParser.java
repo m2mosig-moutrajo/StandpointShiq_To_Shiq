@@ -1,4 +1,4 @@
-package org.standpoint.plugin.parser;
+package org.standpoint.plugin.loader;
 
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;

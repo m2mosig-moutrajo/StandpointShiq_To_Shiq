@@ -6,13 +6,13 @@ import org.semanticweb.owlapi.util.mansyntax.ManchesterOWLSyntaxParser;
 
 import java.util.Collections;
 
-public class StandpointNormaliser {
+public class ManchesterNormaliser {
 
     private final OWLDataFactory df;
     private final OWLOntologyManager helperManager;
     private final OWLOntology helperOntology;
 
-    public StandpointNormaliser(OWLDataFactory df,
+    public ManchesterNormaliser(OWLDataFactory df,
                                 OWLOntologyManager helperManager,
                                 OWLOntology helperOntology) {
         this.df = df;

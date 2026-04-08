@@ -1,4 +1,4 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.model;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
@@ -12,19 +12,19 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SharpeningStatement {
+public class Sharpening {
     public final List<String> lhsStandpoints;  // s1, s2, ..., sn
     public final String rhsStandpoint;          // s, "0",
     public final boolean isNegated;             // true for Rule (8) — ¬(s1 ∩ ... ∩ sn ⪯ u)
 
-    public SharpeningStatement(List<String> lhsStandpoints, String rhsStandpoint) {
+    public Sharpening(List<String> lhsStandpoints, String rhsStandpoint) {
         this.lhsStandpoints = lhsStandpoints;
         this.rhsStandpoint  = rhsStandpoint;
         this.isNegated      = false;
     }
 
-    public SharpeningStatement(List<String> lhsStandpoints, String rhsStandpoint,
-                               boolean isNegated) {
+    public Sharpening(List<String> lhsStandpoints, String rhsStandpoint,
+                      boolean isNegated) {
         this.lhsStandpoints = lhsStandpoints;
         this.rhsStandpoint  = rhsStandpoint;
         this.isNegated      = isNegated;
@@ -34,7 +34,7 @@ public class SharpeningStatement {
         return "0".equals(rhsStandpoint);
     }
 
-    public static SharpeningStatement parse(String xml) {
+    public static Sharpening parse(String xml) {
         try {
             String wrapped = "<root>" + xml.trim() + "</root>";
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -83,7 +83,7 @@ public class SharpeningStatement {
                 rhs = standpointNode.getTextContent().trim();
             }
 
-            return new SharpeningStatement(lhsStandpoints, rhs, isNegated);
+            return new Sharpening(lhsStandpoints, rhs, isNegated);
 
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid sharpening XML: " + e.getMessage(), e);

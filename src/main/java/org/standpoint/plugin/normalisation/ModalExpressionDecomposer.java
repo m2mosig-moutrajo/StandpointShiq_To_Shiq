@@ -1,51 +1,25 @@
-package org.standpoint.plugin.parser;
+package org.standpoint.plugin.normalisation;
 
+import org.standpoint.plugin.model.Operator;
+import org.standpoint.plugin.model.ModalPlaceholder;
+import org.standpoint.plugin.util.PlaceholderCounter;
 import org.w3c.dom.*;
 import javax.xml.parsers.*;
 import org.xml.sax.InputSource;
 import java.io.StringReader;
 import java.util.*;
 
-public class PlaceholderSubstituter {
+public class ModalExpressionDecomposer {
 
-    public enum Operator { BOX, DIAMOND }
+    private final PlaceholderCounter placeholderCounter;
 
-    public static class PlaceholderEntry {
+    private final Map<String, ModalPlaceholder> placeholderMap = new LinkedHashMap<>();
 
-        public enum StandpointAxiomType {
-            NONE,
-            CONCEPT_INCLUSION,
-            CONCEPT_ASSERTION,
-            ROLE_INCLUSION,
-            ROLE_ASSERTION,
-            ROLE_TRANSITIVITY
-        }
-
-        public Operator operator;
-        public String standpoint;
-        public String manchester;
-        public boolean isRoot         = false;
-        public boolean isNegatedAxiom = false;
-        public StandpointAxiomType standpointAxiomType = StandpointAxiomType.NONE;
-
-        public PlaceholderEntry(Operator operator, String standpoint, String manchesterExpression) {
-            this.operator   = operator;
-            this.standpoint = standpoint;
-            this.manchester = manchesterExpression;
-        }
-
-        @Override
-        public String toString() {
-            String opName = operator == Operator.BOX ? "box" : "diamond";
-            return "<modal op=\"" + opName + "\" standpoint=\"" + standpoint + "\">"
-                    + manchester + "</modal>"
-                    + (isRoot ? " [ROOT]" : "");
-        }
+    public ModalExpressionDecomposer(PlaceholderCounter placeholderCounter) {  // ADD
+        this.placeholderCounter = placeholderCounter;
     }
 
-    private final Map<String, PlaceholderEntry> placeholderMap = new LinkedHashMap<>();
-
-    public Map<String, PlaceholderEntry> getMap() { return placeholderMap; }
+    public Map<String, ModalPlaceholder> getMap() { return placeholderMap; }
 
     public String substitute(String standpointLabelXml) {
         try {
@@ -60,7 +34,7 @@ public class PlaceholderSubstituter {
             Node rootNode = doc.getDocumentElement();
             String rootPlaceholderKey = processNode(rootNode.getFirstChild());
 
-            PlaceholderEntry rootEntry = placeholderMap.get(rootPlaceholderKey);
+            ModalPlaceholder rootEntry = placeholderMap.get(rootPlaceholderKey);
             if (rootEntry != null) rootEntry.isRoot = true;
 
             return rootPlaceholderKey;
@@ -106,13 +80,13 @@ public class PlaceholderSubstituter {
 
         Operator operator;
         String manchesterExpression;
-        PlaceholderEntry entry;
+        ModalPlaceholder entry;
 
         if (isNegated && isNegatedInner) {
             // ¬□_s[¬X] → ◇_s[X], ¬◇_s[¬X] → □_s[X]
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
             manchesterExpression = processedInner;
-            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             // axiomType will be set by pipeline from AxiomWithLabel
 
         } else if (isNegated) {
@@ -120,23 +94,23 @@ public class PlaceholderSubstituter {
             // For concept expressions — wrap with not()
             // For axiom types — pipeline handles negation via isNegatedAxiom
             manchesterExpression = processedInner;
-            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             entry.isNegatedAxiom = true;
 
         } else if (isNegatedInner) {
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
-            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             entry.isNegatedAxiom = true;
 
         } else {
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
-            entry = new PlaceholderEntry(operator, standpoint, manchesterExpression);
+            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             // axiomType will be set by pipeline from AxiomWithLabel
         }
 
-        String placeholderKey = PlaceholderUtil.generate();
+        String placeholderKey = placeholderCounter.generate();
         placeholderMap.put(placeholderKey, entry);
         return placeholderKey;
     }
