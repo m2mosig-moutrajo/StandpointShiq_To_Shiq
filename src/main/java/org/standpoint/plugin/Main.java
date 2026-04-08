@@ -18,7 +18,7 @@ public class Main {
         OWLOntology ontology = manager.loadOntologyFromOntologyDocument(owlFile);
 
         // Run pipeline
-        PipelineResult result = new StandpointPipeline(ontology, PipelineLogger.Level.OFF).run();
+        PipelineResult result = new StandpointPipeline(ontology, PipelineLogger.Level.ON).run();
         if (result == null) return;
     }
 }

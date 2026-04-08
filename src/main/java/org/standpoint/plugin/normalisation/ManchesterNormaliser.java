@@ -3,6 +3,7 @@ package org.standpoint.plugin.normalisation;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.util.mansyntax.ManchesterOWLSyntaxParser;
+import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.Collections;
 
@@ -57,6 +58,7 @@ public class ManchesterNormaliser {
             OWLClassExpression owlExpr = parseManchesterExpression(manchesterExpr);
             return renderToManchester(owlExpr.getNNF());
         } catch (Exception e) {
+            PipelineLogger.log("WARNING: could not apply NNF to expression '" + manchesterExpr + "' — " + e.getMessage());
             return manchesterExpr;
         }
     }

@@ -274,14 +274,13 @@ public class StandpointPipeline {
 
             String newConcept;
             if (entry.isNegatedAxiom) {
-                newConcept = "not (" + concept + ")";
-                PipelineLogger.log("Rule (4) on " + e.getKey() + ": "
-                        + entry.manchester + " → " + individual + " Type " + newConcept);
-            } else {
-                newConcept = normaliser.applyNNFToConceptExpression(concept);
-                PipelineLogger.log("Rule (10) on " + e.getKey() + ": "
-                        + entry.manchester + " → " + individual + " Type " + newConcept);
+                // Rule (4): wrap with not(), then Rule (10): apply NNF
+                concept = "not (" + concept + ")";
             }
+
+            // Rule (10): apply NNF to concept expression
+            newConcept = normaliser.applyNNFToConceptExpression(concept);
+            PipelineLogger.log("Rule (4)+(10) on " + e.getKey() + ": " + entry.manchester + " → " + individual + " Type " + newConcept);
 
             entry.manchester          = individual + " Type " + newConcept;
             entry.isNegatedAxiom      = false;
@@ -483,8 +482,7 @@ public class StandpointPipeline {
     // Rule (9): s1 ∩ ... ∩ sn ⪯ 0 → {□_s1[⊤ ⊑ FCi], ..., □_*[FC1 ⊓ ... ⊓ FCn ⊑ ⊥]}
     private void applyZeroSharpenings(List<Sharpening> sharpenings,
                                       List<Sharpening> loadedSharpenings,
-                                      Map<String, ModalPlaceholder> placeholderMap)
-            throws Exception {
+                                      Map<String, ModalPlaceholder> placeholderMap) throws Exception {
         PipelineLogger.log("\n=== STEP 10: RULE (9) — ZERO SHARPENING ===\n");
 
         List<Sharpening> zeroSharpenings = new ArrayList<>();
@@ -497,6 +495,12 @@ public class StandpointPipeline {
         }
 
         for (Sharpening zero : zeroSharpenings) {
+
+            if (zero.lhsStandpoints.contains("0")) {
+                PipelineLogger.log("Rule (9) skipped (trivial 0 ⪯ 0): " + zero);
+                continue;
+            }
+
             PipelineLogger.log("Rule (9) on: " + zero);
             List<String> freshConcepts = new ArrayList<>();
 
@@ -548,7 +552,21 @@ public class StandpointPipeline {
             for (ModalPlaceholder entry : placeholderMap.values()) {
                 if (entry.standpointAxiomType == StandpointAxiomType.NONE) {
                     String before = entry.manchester;
-                    String nnf = normaliser.applyNNFToConceptExpression(entry.manchester);
+                    String nnf;
+
+                    int typeIdx = entry.manchester.indexOf(" Type ");
+                    if (typeIdx != -1) {
+                        // Assertion — extract concept part, apply NNF, reassemble
+                        String individual = entry.manchester.substring(0, typeIdx).trim();
+                        String concept    = entry.manchester
+                                .substring(typeIdx + " Type ".length()).trim();
+                        String nnfConcept = normaliser.applyNNFToConceptExpression(concept);
+                        nnf = individual + " Type " + nnfConcept;
+                    } else {
+                        // Pure concept expression
+                        nnf = normaliser.applyNNFToConceptExpression(entry.manchester);
+                    }
+
                     if (!nnf.equals(entry.manchester)) {
                         entry.manchester = nnf;
                         changed = true;

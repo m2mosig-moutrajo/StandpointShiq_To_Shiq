@@ -78,6 +78,12 @@ public class ModalExpressionDecomposer {
 
         String processedInner = innerManchester.toString().trim();
 
+        try {
+            validateParenBalance(processedInner);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Malformed content in standpoint annotation modal expression: " + e.getMessage());
+        }
+
         Operator operator;
         String manchesterExpression;
         ModalPlaceholder entry;
@@ -113,5 +119,17 @@ public class ModalExpressionDecomposer {
         String placeholderKey = placeholderCounter.generate();
         placeholderMap.put(placeholderKey, entry);
         return placeholderKey;
+    }
+
+    private void validateParenBalance(String expr) {
+        int depth = 0;
+        for (char c : expr.toCharArray()) {
+            if (c == '(') depth++;
+            else if (c == ')') depth--;
+            if (depth < 0) throw new IllegalArgumentException(
+                    "Unmatched closing parenthesis in expression: '" + expr + "'");
+        }
+        if (depth != 0) throw new IllegalArgumentException(
+                "Unclosed parenthesis in expression: '" + expr + "'");
     }
 }
