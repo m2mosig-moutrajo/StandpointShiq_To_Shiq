@@ -45,22 +45,19 @@ public class StandpointPipeline {
     public PipelineResult run() throws Exception {
 
         // Step 1 — Load
-        Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap =
-                OntologyLoader.loadAxiomLabels(ontology);
-        List<FormulaParser.ParsedFormula> formulas =
-                OntologyLoader.loadFormulas(ontology);
-        List<Sharpening> loadedSharpenings =
-                OntologyLoader.loadSharpenings(ontology);
+        Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap = OntologyLoader.loadAxiomLabels(ontology);
+        List<FormulaParser.ParsedFormula> formulas = OntologyLoader.loadFormulas(ontology);
+        List<Sharpening> loadedSharpenings = OntologyLoader.loadSharpenings(ontology);
 
         logLoadedSharpenings(loadedSharpenings);
         logOriginalFormulas(formulas, axiomLabelMap);
 
         if (formulas.isEmpty() && loadedSharpenings.isEmpty()) return null;
 
-        // Step 2 — Expand formulas, apply Rule (1) for diamond operators
         List<Sharpening> sharpenings = new ArrayList<>();
-        List<OntologyLoader.AxiomWithLabel> expandedAxioms =
-                expandFormulas(formulas, axiomLabelMap, sharpenings);
+
+        // Step 2 — Expand formulas, apply Rule (1) for diamond operators
+        List<OntologyLoader.AxiomWithLabel> expandedAxioms = expandFormulas(formulas, axiomLabelMap, sharpenings);
 
         logExpandedFormulas(expandedAxioms);
 
@@ -68,8 +65,7 @@ public class StandpointPipeline {
         buildHelperOntology();
 
         // Step 4 — Substitute placeholders + apply Rule (11) on GCIs
-        Map<String, ModalPlaceholder> placeholderMap =
-                substituteAndNormalise(expandedAxioms);
+        Map<String, ModalPlaceholder> placeholderMap = substituteAndNormalise(expandedAxioms);
 
         // Step 5 — Apply Rule (3): negated GCIs
         applyNegatedGCI(placeholderMap);
@@ -99,10 +95,9 @@ public class StandpointPipeline {
         applyFinalNNFLoop(placeholderMap);
 
         printResults(placeholderMap, sharpenings);
+
         return new PipelineResult(placeholderMap, sharpenings);
     }
-
-    // ─── Step methods ────────────────────────────────────────────────────────
 
     private List<OntologyLoader.AxiomWithLabel> expandFormulas(
             List<FormulaParser.ParsedFormula> formulas,
@@ -174,8 +169,7 @@ public class StandpointPipeline {
             for (String standpointLabel : axiomWithLabel.standpointLabels) {
                 PipelineLogger.log("Processing: " + standpointLabel);
 
-                ModalExpressionDecomposer decomposer =
-                        new ModalExpressionDecomposer(placeholderCounter);
+                ModalExpressionDecomposer decomposer = new ModalExpressionDecomposer(placeholderCounter);
                 String rootKey = decomposer.substitute(standpointLabel);
                 Map<String, ModalPlaceholder> subMap = decomposer.getMap();
 
@@ -185,14 +179,10 @@ public class StandpointPipeline {
                 rootEntry.standpointAxiomType = axiomWithLabel.axiomType;
 
                 // Rule (11): □_s[C ⊑ D] → □_s[⊤ ⊑ NNF(¬C ⊔ D)]
-                if (!rootEntry.isNegatedAxiom
-                        && rootEntry.standpointAxiomType
-                        == StandpointAxiomType.CONCEPT_INCLUSION) {
+                if (!rootEntry.isNegatedAxiom && rootEntry.standpointAxiomType == StandpointAxiomType.CONCEPT_INCLUSION) {
                     String before = rootEntry.manchester;
-                    rootEntry.manchester =
-                            normaliser.normaliseSubClassOf(rootEntry.manchester);
-                    PipelineLogger.log("  Rule (11): " + before
-                            + " → " + rootEntry.manchester);
+                    rootEntry.manchester = normaliser.normaliseSubClassOf(rootEntry.manchester);
+                    PipelineLogger.log("  Rule (11): " + before + " → " + rootEntry.manchester);
                 }
 
                 new ModalDualityRestorer(subMap, placeholderCounter).restoreModalDuality();
@@ -570,13 +560,11 @@ public class StandpointPipeline {
                     if (!nnf.equals(entry.manchester)) {
                         entry.manchester = nnf;
                         changed = true;
-                        PipelineLogger.log("  NNF iteration " + iteration
-                                + ": " + before + " → " + nnf);
+                        PipelineLogger.log("  NNF iteration " + iteration + ": " + before + " → " + nnf);
                     }
                 }
             }
-            ModalDualityRestorer restorer =
-                    new ModalDualityRestorer(placeholderMap, placeholderCounter);
+            ModalDualityRestorer restorer = new ModalDualityRestorer(placeholderMap, placeholderCounter);
             if (restorer.restoreModalDuality()) {
                 changed = true;
                 PipelineLogger.log("  Duality restored in iteration " + iteration);
@@ -584,8 +572,6 @@ public class StandpointPipeline {
         }
         PipelineLogger.log("NNF loop completed in " + iteration + " iteration(s)");
     }
-
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     // Creates a root ModalPlaceholder inheriting operator and standpoint from parent
     private ModalPlaceholder rootEntry(ModalPlaceholder parent,
@@ -646,8 +632,6 @@ public class StandpointPipeline {
                 helperManager.addAxiom(helperOntology,
                         helperDf.getOWLDeclarationAxiom(i)));
     }
-
-    // ─── Logging helpers ─────────────────────────────────────────────────────
 
     private void logLoadedSharpenings(List<Sharpening> sharpenings) {
         PipelineLogger.log("\n=== LOADED SHARPENINGS ===\n");
@@ -716,8 +700,6 @@ public class StandpointPipeline {
             sharpenings.forEach(s -> PipelineLogger.result(s.toString()));
         }
     }
-
-    // ─── XML formatting ──────────────────────────────────────────────────────
 
     private String extractInnerContent(String xml) {
         try {

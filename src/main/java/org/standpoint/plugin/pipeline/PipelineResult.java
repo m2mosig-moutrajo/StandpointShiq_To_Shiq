@@ -17,6 +17,6 @@ public class PipelineResult {
     }
 
     public boolean isEmpty() {
-        return normalisedPlaceholderMap.isEmpty();
+        return (normalisedPlaceholderMap.isEmpty() && sharpenings.isEmpty());
     }
 }

@@ -42,8 +42,7 @@ public class FormulaParser {
             Node formula = doc.getDocumentElement().getFirstChild();
 
             String operator   = formula.getAttributes().getNamedItem("op").getNodeValue();
-            String standpoint = formula.getAttributes()
-                    .getNamedItem("standpoint").getNodeValue();
+            String standpoint = formula.getAttributes().getNamedItem("standpoint").getNodeValue();
 
             List<ParsedLiteral> literals = new ArrayList<>();
 
