@@ -131,7 +131,7 @@ public class StandpointPipelineTest {
         String D = freshConcept();
         boolean negated = new Random().nextBoolean();
         return new GeneratedAxiom(freshAxiomId(),
-                C + " SubClassOf " + D,
+                C + " SubClassOf: " + D,
                 AxiomKind.CONCEPT_INCLUSION, negated);
     }
 
@@ -149,7 +149,7 @@ public class StandpointPipelineTest {
                 + innerContent + "</modal>";
 
         return new GeneratedAxiom(freshAxiomId(),
-                modalTag + " SubClassOf " + D,
+                modalTag + " SubClassOf: " + D,
                 AxiomKind.CONCEPT_INCLUSION, negated, C, D);
     }
 
@@ -158,7 +158,7 @@ public class StandpointPipelineTest {
         String C   = freshConcept();
         boolean negated = new Random().nextBoolean();
         return new GeneratedAxiom(freshAxiomId(),
-                ind + " Type " + C,
+                ind + " Type: " + C,
                 AxiomKind.CONCEPT_ASSERTION, negated);
     }
 
@@ -167,7 +167,7 @@ public class StandpointPipelineTest {
         String R = freshRole();
         boolean negated = new Random().nextBoolean();
         return new GeneratedAxiom(freshAxiomId(),
-                S + " SubPropertyOf " + R,
+                S + " SubPropertyOf: " + R,
                 AxiomKind.ROLE_INCLUSION, negated);
     }
 
@@ -464,7 +464,7 @@ public class StandpointPipelineTest {
                     subName   = axiom.extraC;
                     superName = axiom.extraD;
                 } else {
-                    String[] parts = axiom.manchesterContent.split(" SubClassOf ");
+                    String[] parts = axiom.manchesterContent.split(" SubClassOf: ");
                     subName   = parts[0].trim();
                     superName = parts[1].trim();
                 }
@@ -473,14 +473,14 @@ public class StandpointPipelineTest {
                 return df.getOWLSubClassOfAxiom(C, D);
             }
             case CONCEPT_ASSERTION: {
-                String[] parts = axiom.manchesterContent.split(" Type ");
+                String[] parts = axiom.manchesterContent.split(" Type: ");
                 OWLNamedIndividual ind = df.getOWLNamedIndividual(
                         IRI.create(base + parts[0].trim()));
                 OWLClass C = df.getOWLClass(IRI.create(base + parts[1].trim()));
                 return df.getOWLClassAssertionAxiom(C, ind);
             }
             case ROLE_INCLUSION: {
-                String[] parts = axiom.manchesterContent.split(" SubPropertyOf ");
+                String[] parts = axiom.manchesterContent.split(" SubPropertyOf: ");
                 OWLObjectProperty S = df.getOWLObjectProperty(
                         IRI.create(base + parts[0].trim()));
                 OWLObjectProperty R = df.getOWLObjectProperty(

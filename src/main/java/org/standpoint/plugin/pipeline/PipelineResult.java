@@ -1,5 +1,6 @@
 package org.standpoint.plugin.pipeline;
 
+import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.model.Sharpening;
 
@@ -9,14 +10,15 @@ import java.util.Map;
 public class PipelineResult {
     public final Map<String, ModalPlaceholder> normalisedPlaceholderMap;
     public final List<Sharpening> sharpenings;
+    public final OWLOntology sourceOntology;
 
-    public PipelineResult(Map<String, ModalPlaceholder> normalisedPlaceholderMap,
-                          List<Sharpening> sharpenings) {
+    public PipelineResult(Map<String, ModalPlaceholder> normalisedPlaceholderMap, List<Sharpening> sharpenings, OWLOntology sourceOntology) {
         this.normalisedPlaceholderMap = normalisedPlaceholderMap;
-        this.sharpenings = sharpenings;
+        this.sharpenings              = sharpenings;
+        this.sourceOntology           = sourceOntology;
     }
 
     public boolean isEmpty() {
-        return (normalisedPlaceholderMap.isEmpty() && sharpenings.isEmpty());
+        return normalisedPlaceholderMap.isEmpty() && sharpenings.isEmpty();
     }
 }

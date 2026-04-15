@@ -96,7 +96,7 @@ public class StandpointPipeline {
 
         printResults(placeholderMap, sharpenings);
 
-        return new PipelineResult(placeholderMap, sharpenings);
+        return new PipelineResult(placeholderMap, sharpenings, ontology);
     }
 
     private List<OntologyLoader.AxiomWithLabel> expandFormulas(
@@ -208,9 +208,9 @@ public class StandpointPipeline {
                     || entry.standpointAxiomType != StandpointAxiomType.CONCEPT_INCLUSION)
                 continue;
 
-            int idx  = entry.manchester.indexOf("SubClassOf");
+            int idx  = entry.manchester.indexOf("SubClassOf:");
             String C = entry.manchester.substring(0, idx).trim();
-            String D = entry.manchester.substring(idx + "SubClassOf".length()).trim();
+            String D = entry.manchester.substring(idx + "SubClassOf:".length()).trim();
 
             String freshC = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshR = "FR_" + placeholderCounter.generateWithoutPrefix();
@@ -218,12 +218,12 @@ public class StandpointPipeline {
             registerFreshRole(freshR);
 
             ModalPlaceholder e1 = rootEntry(entry,
-                    freshC + " SubClassOf " + C, StandpointAxiomType.CONCEPT_INCLUSION);
+                    freshC + " SubClassOf: " + C, StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e2 = rootEntry(entry,
-                    "(" + freshC + " and " + D + ") SubClassOf owl:Nothing",
+                    "(" + freshC + " and " + D + ") SubClassOf: owl:Nothing",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e3 = rootEntry(entry,
-                    "Thing SubClassOf (" + freshR + " some " + freshC + ")",
+                    "Thing SubClassOf: (" + freshR + " some " + freshC + ")",
                     StandpointAxiomType.CONCEPT_INCLUSION);
 
             normaliseAll(e1, e2, e3);
@@ -255,12 +255,11 @@ public class StandpointPipeline {
             if (entry.standpointAxiomType != StandpointAxiomType.CONCEPT_ASSERTION)
                 continue;
 
-            int typeIdx = entry.manchester.indexOf(" Type ");
+            int typeIdx = entry.manchester.indexOf(" Type: ");
             if (typeIdx == -1) continue;
 
             String individual = entry.manchester.substring(0, typeIdx).trim();
-            String concept    = entry.manchester
-                    .substring(typeIdx + " Type ".length()).trim();
+            String concept = entry.manchester.substring(typeIdx + " Type: ".length()).trim();
 
             String newConcept;
             if (entry.isNegatedAxiom) {
@@ -270,11 +269,11 @@ public class StandpointPipeline {
 
             // Rule (10): apply NNF to concept expression
             newConcept = normaliser.applyNNFToConceptExpression(concept);
-            PipelineLogger.log("Rule (4)+(10) on " + e.getKey() + ": " + entry.manchester + " → " + individual + " Type " + newConcept);
+            PipelineLogger.log("Rule (4)+(10) on " + e.getKey() + ": " + entry.manchester + " → " + individual + " Type: " + newConcept);
 
-            entry.manchester          = individual + " Type " + newConcept;
+            entry.manchester          = individual + " Type: " + newConcept;
             entry.isNegatedAxiom      = false;
-            entry.standpointAxiomType = StandpointAxiomType.NONE;
+            entry.standpointAxiomType = StandpointAxiomType.CONCEPT_ASSERTION;
             entry.isRoot              = true;
         }
     }
@@ -294,10 +293,10 @@ public class StandpointPipeline {
                     || entry.standpointAxiomType != StandpointAxiomType.ROLE_INCLUSION)
                 continue;
 
-            int idx  = entry.manchester.indexOf("SubPropertyOf");
+            int idx  = entry.manchester.indexOf("SubPropertyOf:");
             String S = entry.manchester.substring(0, idx).trim();
             String R = entry.manchester
-                    .substring(idx + "SubPropertyOf".length()).trim();
+                    .substring(idx + "SubPropertyOf:".length()).trim();
 
             String freshCa = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshCb = "FC_" + placeholderCounter.generateWithoutPrefix();
@@ -307,14 +306,14 @@ public class StandpointPipeline {
             registerFreshRole(freshR);
 
             ModalPlaceholder e1 = rootEntry(entry,
-                    "Thing SubClassOf (" + freshR + " some " + freshCa + ")",
+                    "Thing SubClassOf: (" + freshR + " some " + freshCa + ")",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e2 = rootEntry(entry,
                     "(" + freshCa + " and (" + R + " some " + freshCb
-                            + ")) SubClassOf owl:Nothing",
+                            + ")) SubClassOf: owl:Nothing",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e3 = rootEntry(entry,
-                    freshCa + " SubClassOf (" + S + " some " + freshCb + ")",
+                    freshCa + " SubClassOf: (" + S + " some " + freshCb + ")",
                     StandpointAxiomType.CONCEPT_INCLUSION);
 
             normaliseAll(e1, e2, e3);
@@ -351,10 +350,11 @@ public class StandpointPipeline {
                     || entry.standpointAxiomType != StandpointAxiomType.ROLE_ASSERTION)
                 continue;
 
-            String[] tokens = entry.manchester.trim().split("\\s+");
-            String a    = tokens[0];
-            String role = tokens[1];
-            String b    = tokens[2];
+            String stripped = entry.manchester.replace("Individual:", "").replace("Facts:", "").trim();
+            String[] tokens = stripped.trim().split("\\s+");
+            String a    = tokens[0];  // Alice
+            String role = tokens[1];  // knows
+            String b    = tokens[2];  // Bob
 
             String freshCa = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshCb = "FC_" + placeholderCounter.generateWithoutPrefix();
@@ -362,12 +362,12 @@ public class StandpointPipeline {
             registerFreshClass(freshCb);
 
             ModalPlaceholder e1 = rootEntry(entry,
-                    a + " Type " + freshCa, StandpointAxiomType.CONCEPT_ASSERTION);
+                    a + " Type: " + freshCa, StandpointAxiomType.CONCEPT_ASSERTION);
             ModalPlaceholder e2 = rootEntry(entry,
-                    b + " Type " + freshCb, StandpointAxiomType.CONCEPT_ASSERTION);
+                    b + " Type: " + freshCb, StandpointAxiomType.CONCEPT_ASSERTION);
             ModalPlaceholder e3 = rootEntry(entry,
                     "(" + freshCa + " and (" + role + " some " + freshCb
-                            + ")) SubClassOf owl:Nothing",
+                            + ")) SubClassOf: owl:Nothing",
                     StandpointAxiomType.CONCEPT_INCLUSION);
 
             e3.manchester = normaliser.normaliseSubClassOf(e3.manchester);
@@ -415,14 +415,14 @@ public class StandpointPipeline {
             registerFreshRole(freshR);
 
             ModalPlaceholder e1 = rootEntry(entry,
-                    "Thing SubClassOf (" + freshR + " some " + freshCa + ")",
+                    "Thing SubClassOf: (" + freshR + " some " + freshCa + ")",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e2 = rootEntry(entry,
                     "(" + freshCa + " and (" + role + " some " + freshCb
-                            + ")) SubClassOf owl:Nothing",
+                            + ")) SubClassOf: owl:Nothing",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             ModalPlaceholder e3 = rootEntry(entry,
-                    freshCa + " SubClassOf (" + role + " some ("
+                    freshCa + " SubClassOf: (" + role + " some ("
                             + role + " some " + freshCb + "))",
                     StandpointAxiomType.CONCEPT_INCLUSION);
 
@@ -502,7 +502,7 @@ public class StandpointPipeline {
                 String key = placeholderCounter.generate();
                 ModalPlaceholder entry = rootEntry(
                         Operator.BOX, si,
-                        "Thing SubClassOf " + freshCi,
+                        "Thing SubClassOf: " + freshCi,
                         StandpointAxiomType.CONCEPT_INCLUSION);
                 entry.manchester = normaliser.normaliseSubClassOf(entry.manchester);
                 placeholderMap.put(key, entry);
@@ -513,7 +513,7 @@ public class StandpointPipeline {
             String key = placeholderCounter.generate();
             ModalPlaceholder global = rootEntry(
                     Operator.BOX, "*",
-                    "(" + intersection + ") SubClassOf owl:Nothing",
+                    "(" + intersection + ") SubClassOf: owl:Nothing",
                     StandpointAxiomType.CONCEPT_INCLUSION);
             global.manchester = normaliser.normaliseSubClassOf(global.manchester);
             placeholderMap.put(key, global);
@@ -544,14 +544,14 @@ public class StandpointPipeline {
                     String before = entry.manchester;
                     String nnf;
 
-                    int typeIdx = entry.manchester.indexOf(" Type ");
+                    int typeIdx = entry.manchester.indexOf(" Type: ");
                     if (typeIdx != -1) {
                         // Assertion — extract concept part, apply NNF, reassemble
                         String individual = entry.manchester.substring(0, typeIdx).trim();
                         String concept    = entry.manchester
-                                .substring(typeIdx + " Type ".length()).trim();
+                                .substring(typeIdx + " Type: ".length()).trim();
                         String nnfConcept = normaliser.applyNNFToConceptExpression(concept);
-                        nnf = individual + " Type " + nnfConcept;
+                        nnf = individual + " Type: " + nnfConcept;
                     } else {
                         // Pure concept expression
                         nnf = normaliser.applyNNFToConceptExpression(entry.manchester);
@@ -699,6 +699,7 @@ public class StandpointPipeline {
         } else {
             sharpenings.forEach(s -> PipelineLogger.result(s.toString()));
         }
+        PipelineLogger.result("\n======================================\n\n");
     }
 
     private String extractInnerContent(String xml) {
