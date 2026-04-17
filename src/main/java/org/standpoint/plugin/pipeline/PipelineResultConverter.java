@@ -40,8 +40,7 @@ public class PipelineResultConverter {
         // Step 1 — Build a fresh helper ontology
         OWLOntologyManager helperManager = OWLManager.createOWLOntologyManager();
         OWLDataFactory helperDf          = helperManager.getOWLDataFactory();
-        OWLOntology helperOntology       = helperManager.createOntology(
-                IRI.create("http://standpoint.org/converter-helper"));
+        OWLOntology helperOntology       = helperManager.createOntology();
 
         // Declare Thing and Nothing
         helperManager.addAxiom(helperOntology,
@@ -95,8 +94,7 @@ public class PipelineResultConverter {
                             helperDf.getOWLDeclarationAxiom(
                                     helperDf.getOWLObjectProperty(
                                             IRI.create(ontologyBase + token))));
-                } else {
-                    // FC_ and FS_ — fresh concepts
+                } else if(token.startsWith("FC_"))  {
                     helperManager.addAxiom(helperOntology,
                             helperDf.getOWLDeclarationAxiom(
                                     helperDf.getOWLClass(
@@ -229,9 +227,7 @@ public class PipelineResultConverter {
         Set<String> tokens = new LinkedHashSet<>();
         for (String part : manchester.split("[\\s():]+")) {
             String trimmed = part.trim();
-            if (trimmed.startsWith("FC_")
-                    || trimmed.startsWith("FR_")
-                    || trimmed.startsWith("FS_")) {
+            if (trimmed.startsWith("FC_") || trimmed.startsWith("FR_")) {
                 tokens.add(trimmed);
             }
         }
