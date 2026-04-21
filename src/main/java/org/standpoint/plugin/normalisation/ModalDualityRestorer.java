@@ -34,7 +34,7 @@ public class ModalDualityRestorer {
 
         while (i < manchesterExpr.length()) {
             // Look for "not (SP_...)" pattern
-            if (manchesterExpr.startsWith("not (" + PlaceholderCounter.PREFIX, i)) {
+            if (manchesterExpr.startsWith("not (" + placeholderCounter.PREFIX, i)) {
                 int parenOpen  = manchesterExpr.indexOf('(', i + 4);
                 int parenClose = findMatchingParen(manchesterExpr, parenOpen);
                 String innerToken = manchesterExpr.substring(parenOpen + 1, parenClose).trim();

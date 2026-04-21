@@ -97,12 +97,25 @@ public class ModalExpressionDecomposer {
 
         } else if (isNegated) {
             operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
-            // For concept expressions — wrap with not()
-            // For axiom types — pipeline handles negation via isNegatedAxiom
-            manchesterExpression = processedInner;
-            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
-            entry.isNegatedAxiom = true;
 
+            // Check if content is a concept expression or an axiom
+            boolean isAxiomContent = processedInner.contains("SubClassOf:")
+                    || processedInner.contains("Type:")
+                    || processedInner.contains("SubPropertyOf:")
+                    || processedInner.contains("Individual:")
+                    || processedInner.startsWith("Transitive");
+
+            if (isAxiomContent) {
+                // Axiom-level modal — negation handled by pipeline via isNegatedAxiom
+                manchesterExpression = processedInner;
+                entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+                entry.isNegatedAxiom = true;
+            } else {
+                // Concept-level modal — apply ¬C directly
+                // ¬□_s[C] = ◇_s[¬C],  ¬◇_s[C] = □_s[¬C]
+                manchesterExpression = "not (" + processedInner + ")";
+                entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+            }
         } else if (isNegatedInner) {
             operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;

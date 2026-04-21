@@ -3,7 +3,7 @@ package org.standpoint.plugin.ui;
 import org.protege.editor.owl.model.OWLModelManager;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.model.ModalPlaceholder;
-import org.standpoint.plugin.pipeline.PipelineResult;
+import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
 import org.standpoint.plugin.pipeline.StandpointPipeline;
 import org.standpoint.plugin.util.PipelineLogger;
 
@@ -83,7 +83,7 @@ public class StandpointPanel extends JPanel {
                     : PipelineLogger.Level.OFF;
 
             StandpointPipeline pipeline = new StandpointPipeline(ontology, logLevel);
-            PipelineResult result = pipeline.run();
+            NormalisedKnowledgeBase result = pipeline.run();
 
             // Restore System.out
             System.setOut(originalOut);
@@ -95,7 +95,7 @@ public class StandpointPanel extends JPanel {
 
             textAreaLog.append("=== NORMALISED MAP ===\n");
             for (Map.Entry<String, ModalPlaceholder> e :
-                    result.normalisedPlaceholderMap.entrySet()) {
+                    result.manchesterMap.entrySet()) {
                 textAreaLog.append(e.getKey() + " → " + e.getValue() + "\n");
             }
 

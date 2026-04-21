@@ -2,7 +2,7 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.pipeline.PipelineResult;
+import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
 import org.standpoint.plugin.pipeline.StandpointPipeline;
 import org.standpoint.plugin.util.PipelineLogger;
 
@@ -72,9 +72,9 @@ public class StandpointPipelineTest {
 
         OWLOntology ontology = buildOntology(axioms, formulas, sharpenings);
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
-        PipelineResult result = new StandpointPipeline(ontology).run();
+        NormalisedKnowledgeBase result = new StandpointPipeline(ontology).run();
 
-        long actualRoots = result.normalisedPlaceholderMap.values().stream()
+        long actualRoots = result.manchesterMap.values().stream()
                 .filter(e -> e.isRoot)
                 .count();
 
@@ -566,10 +566,10 @@ public class StandpointPipelineTest {
 
     // ===== Helpers =====
 
-    private int countFresh(PipelineResult result, String prefix) {
+    private int countFresh(NormalisedKnowledgeBase result, String prefix) {
         Set<String> found = new HashSet<>();
-        for (Map.Entry<String, ?> e : result.normalisedPlaceholderMap.entrySet()) {
-            String manchester = result.normalisedPlaceholderMap
+        for (Map.Entry<String, ?> e : result.manchesterMap.entrySet()) {
+            String manchester = result.manchesterMap
                     .get(e.getKey()).manchester;
             for (String token : manchester.split("\\s+|\\(|\\)")) {
                 if (token.startsWith(prefix)) found.add(token);

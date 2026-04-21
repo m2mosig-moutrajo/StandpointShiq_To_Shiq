@@ -2,7 +2,7 @@ package org.standpoint.plugin.util;
 
 public class PlaceholderCounter {
 
-    public static final String PREFIX = "SP_";
+    public final String PREFIX = "SP_";
     private int counter = 1;
 
     public String generate() {

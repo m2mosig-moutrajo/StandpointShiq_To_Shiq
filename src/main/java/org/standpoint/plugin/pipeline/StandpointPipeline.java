@@ -42,7 +42,7 @@ public class StandpointPipeline {
         PipelineLogger.setLevel(logLevel);
     }
 
-    public PipelineResult run() throws Exception {
+    public NormalisedKnowledgeBase run() throws Exception {
 
         // Step 1 — Load
         Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap = OntologyLoader.loadAxiomLabels(ontology);
@@ -96,7 +96,7 @@ public class StandpointPipeline {
 
         printResults(placeholderMap, sharpenings);
 
-        return new PipelineResult(placeholderMap, sharpenings, ontology);
+        return new NormalisedKnowledgeBase(placeholderMap, sharpenings, ontology);
     }
 
     private List<OntologyLoader.AxiomWithLabel> expandFormulas(

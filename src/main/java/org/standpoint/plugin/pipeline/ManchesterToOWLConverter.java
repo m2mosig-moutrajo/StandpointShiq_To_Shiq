@@ -9,16 +9,16 @@ import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
 
-public class PipelineResultConverter {
+public class ManchesterToOWLConverter {
 
     // SP_n placeholders only — unresolved modal sub-expressions
     // FC_n, FR_n, FS_n are registered under the source ontology IRI
     // and treated as normal OWL entities by Trans(K)
     public static final String PLUGIN_NS = "http://standpoint.org/placeholder#";
 
-    private final PipelineResult result;
+    private final NormalisedKnowledgeBase result;
 
-    public PipelineResultConverter(PipelineResult result) {
+    public ManchesterToOWLConverter(NormalisedKnowledgeBase result) {
         this.result = result;
     }
 
@@ -35,7 +35,7 @@ public class PipelineResultConverter {
         return cls.getIRI().getShortForm();
     }
 
-    public Map<String, ResolvedPlaceholder> convert() throws Exception {
+    public void convert() throws Exception {
 
         // Step 1 — Build a fresh helper ontology
         OWLOntologyManager helperManager = OWLManager.createOWLOntologyManager();
@@ -66,7 +66,7 @@ public class PipelineResultConverter {
 
         // Step 3 — Declare all SP_n keys as OWL classes under PLUGIN_NS
         // Short form (e.g. "SP_1") resolved automatically by Manchester parser
-        Set<String> allKeys = result.normalisedPlaceholderMap.keySet();
+        Set<String> allKeys = result.manchesterMap.keySet();
         for (String key : allKeys) {
             helperManager.addAxiom(helperOntology,
                     helperDf.getOWLDeclarationAxiom(
@@ -87,7 +87,7 @@ public class PipelineResultConverter {
             ontologyBase += "#";
         }
 
-        for (ModalPlaceholder mp : result.normalisedPlaceholderMap.values()) {
+        for (ModalPlaceholder mp : result.manchesterMap.values()) {
             for (String token : extractFreshTokens(mp.manchester)) {
                 if (token.startsWith("FR_")) {
                     helperManager.addAxiom(helperOntology,
@@ -107,23 +107,23 @@ public class PipelineResultConverter {
                 new ManchesterNormaliser(helperDf, helperManager, helperOntology);
 
         // Step 5 — Convert each entry
-        Map<String, ResolvedPlaceholder> resolved = new LinkedHashMap<>();
+        Map<String, NormalisedAxiom> resolved = new LinkedHashMap<>();
 
         for (Map.Entry<String, ModalPlaceholder> e :
-                result.normalisedPlaceholderMap.entrySet()) {
+                result.manchesterMap.entrySet()) {
 
             String key          = e.getKey();
             ModalPlaceholder mp = e.getValue();
 
-            ResolvedPlaceholder rp = convertEntry(key, mp, normaliser);
+            NormalisedAxiom rp = convertEntry(key, mp, normaliser);
             resolved.put(key, rp);
             PipelineLogger.log("Converted: " + key + " → " + rp);
         }
 
-        return resolved;
+        result.owlMap = resolved;
     }
 
-    private ResolvedPlaceholder convertEntry(
+    private NormalisedAxiom convertEntry(
             String key,
             ModalPlaceholder mp,
             ManchesterNormaliser normaliser) {
@@ -134,7 +134,7 @@ public class PipelineResultConverter {
         // type may be NONE after Rule (4)+(10) even for assertions
         if (mp.manchester.contains(" Type: ")) {
             OWLAxiom owlAxiom = tryParseAxiom(mp.manchester, normaliser, key);
-            return new ResolvedPlaceholder(
+            return new NormalisedAxiom(
                     key, mp.operator, mp.standpoint,
                     type, mp.isRoot,
                     owlAxiom, null, mp.manchester,
@@ -145,7 +145,7 @@ public class PipelineResultConverter {
         if (type == StandpointAxiomType.NONE) {
             OWLClassExpression owlTree =
                     tryParseExpression(mp.manchester, normaliser, key);
-            return new ResolvedPlaceholder(
+            return new NormalisedAxiom(
                     key, mp.operator, mp.standpoint,
                     type, mp.isRoot,
                     null, owlTree, mp.manchester,
@@ -158,7 +158,7 @@ public class PipelineResultConverter {
                 .replace("owl:Thing", "Thing");
         OWLAxiom owlAxiom = tryParseAxiom(axiomString, normaliser, key);
 
-        return new ResolvedPlaceholder(
+        return new NormalisedAxiom(
                 key, mp.operator, mp.standpoint,
                 type, mp.isRoot,
                 owlAxiom, null, mp.manchester,
