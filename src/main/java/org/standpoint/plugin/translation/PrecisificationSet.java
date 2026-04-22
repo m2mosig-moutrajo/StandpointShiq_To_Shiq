@@ -40,31 +40,40 @@ public class PrecisificationSet {
             Set<OWLNamedIndividual> individuals,
             Map<String, Set<String>> closures) {
 
-        List<Precisification> allPrec = new ArrayList<>();
+        List<Precisification> all = new ArrayList<>();
 
         // π_s — one per standpoint
         for (String s : standpoints) {
             String id = s.equals("*") ? "star" : s;
-            allPrec.add(new Precisification(id, PrecisificationType.STANDPOINT, s, null, null));
+            all.add(new Precisification(
+                    id, PrecisificationType.STANDPOINT, s, null, null));
         }
 
-        // π⁰_{s,C} and π¹_{s,C} — two per diamond subterm
-        // π^a_{s,C} — one per diamond subterm × named individual
+        // π⁰_{s,C} and π¹_{s,C} — two per (standpoint, D_n) pair
+        // π^a_{s,C} — one per (standpoint, D_n) × individual
+        // Note: same D_n can appear with multiple standpoints
         for (DiamondSubterm diamond : diamonds) {
-            String s   = diamond.standpoint;
-            String key = diamond.placeholderKey;
+            String s  = diamond.standpoint;
+            String dn = diamond.diamondId;
 
-            // anonymous witnesses
-            allPrec.add(new Precisification("0_" + s + "_" + key, PrecisificationType.ANONYMOUS_0, s, diamond, null));
-            allPrec.add(new Precisification("1_" + s + "_" + key, PrecisificationType.ANONYMOUS_1, s, diamond, null));
+            // anonymous witnesses — id uses D_n not SP_n
+            all.add(new Precisification(
+                    "0_" + s + "_" + dn,
+                    PrecisificationType.ANONYMOUS_0, s, diamond, null));
+            all.add(new Precisification(
+                    "1_" + s + "_" + dn,
+                    PrecisificationType.ANONYMOUS_1, s, diamond, null));
 
             // named witnesses
             for (OWLNamedIndividual ind : individuals) {
                 String indName = ind.getIRI().getShortForm();
-                allPrec.add(new Precisification(indName + "_" + s + "_" + key, PrecisificationType.NAMED, s, diamond, ind));
+                all.add(new Precisification(
+                        indName + "_" + s + "_" + dn,
+                        PrecisificationType.NAMED, s, diamond, ind));
             }
         }
-        return new PrecisificationSet(allPrec, closures);
+
+        return new PrecisificationSet(all, closures);
     }
 
     /**

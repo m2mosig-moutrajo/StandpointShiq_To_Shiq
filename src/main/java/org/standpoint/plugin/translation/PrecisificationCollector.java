@@ -55,11 +55,19 @@ public class PrecisificationCollector {
     public Set<DiamondSubterm> collectDiamondSubterms() {
         Set<DiamondSubterm> diamonds = new LinkedHashSet<>();
         if (kb.owlMap == null) return diamonds;
+
         for (Map.Entry<String, NormalisedAxiom> e : kb.owlMap.entrySet()) {
             NormalisedAxiom ax = e.getValue();
-            if (ax.operator == Operator.DIAMOND && ax.owlTree != null) {
-                diamonds.add(new DiamondSubterm(ax.standpoint, ax.owlTree, e.getKey()));
+
+            if (ax.operator != Operator.DIAMOND || ax.owlTree == null) continue;
+
+            // Skip duplicates — only keep canonical entries
+            if (kb.canonicalKey != null) {
+                String canonical = kb.canonicalKey.getOrDefault(e.getKey(), e.getKey());
+                if (!canonical.equals(e.getKey())) continue;
             }
+
+            diamonds.add(new DiamondSubterm(ax.standpoint, ax.owlTree, e.getKey()));
         }
         return diamonds;
     }

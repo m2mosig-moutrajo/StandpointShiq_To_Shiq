@@ -52,10 +52,9 @@ public class Precisification {
     public String toString() {
         switch (type) {
             case STANDPOINT:  return "π_" + standpoint;
-            case ANONYMOUS_0: return "π⁰_{" + standpoint + "," + diamond.placeholderKey + "}";
-            case ANONYMOUS_1: return "π¹_{" + standpoint + "," + diamond.placeholderKey + "}";
-            case NAMED:       return "π^" + individual.getIRI().getShortForm()
-                    + "_{" + standpoint + "," + diamond.placeholderKey + "}";
+            case ANONYMOUS_0: return "π⁰_{" + standpoint + "," + diamond.diamondId + "}";
+            case ANONYMOUS_1: return "π¹_{" + standpoint + "," + diamond.diamondId + "}";
+            case NAMED: return "π^" + individual.getIRI().getShortForm() + "_{" + standpoint + "," + diamond.diamondId + "}";
             default: return id;
         }
     }
