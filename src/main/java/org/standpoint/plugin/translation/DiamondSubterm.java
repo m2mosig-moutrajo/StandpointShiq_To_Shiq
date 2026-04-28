@@ -9,7 +9,6 @@ public class DiamondSubterm {
     public final String standpoint;
     public OWLClassExpression concept;
     public final String placeholderKey;
-    // Assigned after concept deduplication — D_1, D_2, ...
     // Identifies the concept C regardless of standpoint
     // Two diamonds ◇_s2[B] and ◇_s3[B] share the same diamondId
     public String diamondId;

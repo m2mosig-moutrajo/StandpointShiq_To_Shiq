@@ -12,7 +12,6 @@ public class NormalisedKnowledgeBase {
     public final Map<String, ModalPlaceholder> manchesterMap;
     public final List<Sharpening> sharpenings;
     public final OWLOntology sourceOntology;
-    // Set after ManchesterToOWLConverter runs — null until then
     public Map<String, NormalisedAxiom> owlMap;
     public Map<String, String> canonicalKey;
 

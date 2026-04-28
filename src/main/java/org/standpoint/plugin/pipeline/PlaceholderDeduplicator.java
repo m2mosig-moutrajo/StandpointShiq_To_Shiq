@@ -1,25 +1,11 @@
 package org.standpoint.plugin.pipeline;
 
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.model.Operator;
-import org.standpoint.plugin.pipeline.ManchesterToOWLConverter;
+import org.standpoint.plugin.model.EntrySignature;
 import org.standpoint.plugin.translation.DiamondSubterm;
 
 import java.util.*;
 
-/**
- * Deduplicates SP_n entries in the owlMap by bottom-up structural equality.
- *
- * Pass 0 — leaf entries (childKeys = []):
- *   Compare owlTree directly using OWL API equals()
- *
- * Pass 1 — entries with 1 child:
- *   First resolve child keys to canonical, then compare
- *
- * Pass 2+ — same pattern
- *
- * Produces canonicalKey map: SP_n → canonical SP_n
- */
 public class PlaceholderDeduplicator {
 
     private final Map<String, NormalisedAxiom> owlMap;
@@ -33,7 +19,6 @@ public class PlaceholderDeduplicator {
     }
 
     public Map<String, String> deduplicate() {
-
         canonicalKey = new LinkedHashMap<>();
         Set<String> processed            = new LinkedHashSet<>();
         Map<EntrySignature, String> seen = new LinkedHashMap<>();
@@ -42,31 +27,39 @@ public class PlaceholderDeduplicator {
                 .mapToInt(ax -> ax.childKeys.size())
                 .max().orElse(0);
 
+        // Group Map.Entry by childKeys size — preserves both key and ax
+        Map<Integer, List<Map.Entry<String, NormalisedAxiom>>> grouped = new HashMap<>();
+
+        for (Map.Entry<String, NormalisedAxiom> e : owlMap.entrySet()) {
+            int size = e.getValue().childKeys.size();
+            grouped.computeIfAbsent(size, k -> new ArrayList<>()).add(e);
+        }
+
+        // Then iterate efficiently
         for (int pass = 0; pass <= maxChildren; pass++) {
-            for (Map.Entry<String, NormalisedAxiom> e : owlMap.entrySet()) {
+            List<Map.Entry<String, NormalisedAxiom>> list = grouped.get(pass);
+            if (list == null) continue;  // no entries at this depth
+
+            for (Map.Entry<String, NormalisedAxiom> e : list) {
                 String key         = e.getKey();
                 NormalisedAxiom ax = e.getValue();
 
                 if (processed.contains(key)) continue;
-                if (ax.childKeys.size() != pass) continue;
                 if (!processed.containsAll(ax.childKeys)) continue;
 
+                // root entries always canonical
                 if (ax.isRoot) {
                     canonicalKey.put(key, key);
                     processed.add(key);
                     continue;
                 }
 
-                // Resolve child placeholders to canonical keys in owlTree
                 OWLClassExpression resolvedTree = resolveTree(ax.owlTree, canonicalKey);
-
                 EntrySignature sig = new EntrySignature(ax.operator, ax.standpoint, resolvedTree);
 
                 if (seen.containsKey(sig)) {
-                    // Duplicate — map to canonical
                     canonicalKey.put(key, seen.get(sig));
                 } else {
-                    // First occurrence — canonical
                     seen.put(sig, key);
                     canonicalKey.put(key, key);
                 }
@@ -75,7 +68,6 @@ public class PlaceholderDeduplicator {
             }
         }
 
-        // Any remaining unprocessed — mark as canonical
         for (String key : owlMap.keySet()) {
             if (!processed.contains(key)) {
                 canonicalKey.put(key, key);
@@ -86,121 +78,149 @@ public class PlaceholderDeduplicator {
     }
 
     /**
-     * Walks an OWLClassExpression and replaces each placeholder IRI
-     * with the IRI of its canonical representative.
+     * Recursively walks an OWLClassExpression and replaces every
+     * placeholder IRI (SP_n) with its canonical form from canonicalKey.
+     *
+     * Real concepts (Animal, Dog, etc.) are never touched.
+     * OWL API objects are immutable — always returns a new object when changes occur.
      */
-    private OWLClassExpression resolveTree(OWLClassExpression expr,
-                                           Map<String, String> canonicalKey) {
+    public OWLClassExpression resolveTree(OWLClassExpression expr,
+                                          Map<String, String> canonicalKey) {
         if (expr == null) return null;
 
+        // --- Leaf: OWLClass — either a real concept or a SP_n placeholder ---
         if (expr instanceof OWLClass) {
-            OWLClass cls = (OWLClass) expr;
-            if (ManchesterToOWLConverter.isPlaceholder(cls)) {
-                String key   = cls.getIRI().getShortForm();
-                String canon = canonicalKey.getOrDefault(key, key);
-                if (canon.equals(key)) return expr;
-                return df.getOWLClass(IRI.create(
-                        ManchesterToOWLConverter.PLUGIN_NS + canon));
-            }
-            return expr;
+            return handleClass((OWLClass) expr, canonicalKey);
         }
 
+        // --- Unary: negation — recurse into the single operand ---
         if (expr instanceof OWLObjectComplementOf) {
+            OWLObjectComplementOf c = (OWLObjectComplementOf) expr;
             return df.getOWLObjectComplementOf(
-                    resolveTree(((OWLObjectComplementOf) expr)
-                            .getOperand(), canonicalKey));
+                    resolveTree(c.getOperand(), canonicalKey));
         }
 
+        // --- N-ary: union — recurse into every operand ---
         if (expr instanceof OWLObjectUnionOf) {
-            Set<OWLClassExpression> ops = new HashSet<>();
-            for (OWLClassExpression op :
-                    ((OWLObjectUnionOf) expr).getOperands())
-                ops.add(resolveTree(op, canonicalKey));
-            return df.getOWLObjectUnionOf(ops);
+            return df.getOWLObjectUnionOf(
+                    transformSet(((OWLObjectUnionOf) expr).getOperands(), canonicalKey));
         }
 
+        // --- N-ary: intersection — recurse into every operand ---
         if (expr instanceof OWLObjectIntersectionOf) {
-            Set<OWLClassExpression> ops = new HashSet<>();
-            for (OWLClassExpression op :
-                    ((OWLObjectIntersectionOf) expr).getOperands())
-                ops.add(resolveTree(op, canonicalKey));
-            return df.getOWLObjectIntersectionOf(ops);
+            return df.getOWLObjectIntersectionOf(
+                    transformSet(((OWLObjectIntersectionOf) expr).getOperands(), canonicalKey));
         }
 
+        // --- Restriction: ∃R.C — property untouched, recurse into filler ---
         if (expr instanceof OWLObjectSomeValuesFrom) {
             OWLObjectSomeValuesFrom s = (OWLObjectSomeValuesFrom) expr;
-            return df.getOWLObjectSomeValuesFrom(s.getProperty(),
+            return df.getOWLObjectSomeValuesFrom(
+                    s.getProperty(),
                     resolveTree(s.getFiller(), canonicalKey));
         }
 
+        // --- Restriction: ∀R.C — property untouched, recurse into filler ---
         if (expr instanceof OWLObjectAllValuesFrom) {
             OWLObjectAllValuesFrom a = (OWLObjectAllValuesFrom) expr;
-            return df.getOWLObjectAllValuesFrom(a.getProperty(),
+            return df.getOWLObjectAllValuesFrom(
+                    a.getProperty(),
                     resolveTree(a.getFiller(), canonicalKey));
         }
 
+        // --- Cardinality restrictions: ≥n R.C / ≤n R.C / =n R.C
+        //     cardinality number and property untouched, recurse into filler ---
         if (expr instanceof OWLObjectMinCardinality) {
-            OWLObjectMinCardinality m = (OWLObjectMinCardinality) expr;
-            return df.getOWLObjectMinCardinality(m.getCardinality(),
-                    m.getProperty(),
-                    resolveTree(m.getFiller(), canonicalKey));
+            return rebuildCardinality((OWLObjectMinCardinality) expr, canonicalKey);
         }
-
         if (expr instanceof OWLObjectMaxCardinality) {
-            OWLObjectMaxCardinality m = (OWLObjectMaxCardinality) expr;
-            return df.getOWLObjectMaxCardinality(m.getCardinality(),
-                    m.getProperty(),
-                    resolveTree(m.getFiller(), canonicalKey));
+            return rebuildCardinality((OWLObjectMaxCardinality) expr, canonicalKey);
         }
-
         if (expr instanceof OWLObjectExactCardinality) {
-            OWLObjectExactCardinality m = (OWLObjectExactCardinality) expr;
-            return df.getOWLObjectExactCardinality(m.getCardinality(),
-                    m.getProperty(),
-                    resolveTree(m.getFiller(), canonicalKey));
+            return rebuildCardinality((OWLObjectExactCardinality) expr, canonicalKey);
         }
 
+        // --- Unknown type — return unchanged (data restrictions, nominals, etc.) ---
         return expr;
+    }
+
+    /**
+     * Handles the leaf case.
+     * If the class is a SP_n placeholder IRI — replace with canonical.
+     * If it is a real concept — return unchanged.
+     */
+    private OWLClassExpression handleClass(OWLClass cls,
+                                           Map<String, String> canonicalKey) {
+        // Real concept — leave it alone
+        if (!ManchesterToOWLConverter.isPlaceholder(cls)) {
+            return cls;
+        }
+
+        // Placeholder — resolve to canonical
+        String key   = cls.getIRI().getShortForm();   // e.g. "SP_3"
+        String canon = canonicalKey.getOrDefault(key, key);
+
+        // Already canonical — return same object, no allocation needed
+        if (canon.equals(key)) return cls;
+
+        // Duplicate — build new IRI pointing to canonical
+        // e.g. SP_3 → SP_1  becomes  http://standpoint.org/placeholder#SP_1
+        return df.getOWLClass(IRI.create(
+                ManchesterToOWLConverter.PLUGIN_NS + canon));
+    }
+
+    /**
+     * Recurses into every operand of a set (used for union and intersection).
+     * Collects results into a new HashSet — OWL API will sort them internally.
+     */
+    private Set<OWLClassExpression> transformSet(Set<OWLClassExpression> operands,
+                                                 Map<String, String> canonicalKey) {
+        Set<OWLClassExpression> result = new HashSet<>(operands.size());
+        for (OWLClassExpression op : operands) {
+            result.add(resolveTree(op, canonicalKey));
+        }
+        return result;
+    }
+
+    /**
+     * Rebuilds a cardinality restriction with a resolved filler.
+     * Cardinality number and property are always preserved unchanged.
+     * Dispatches to the correct df.getOWL* method based on subtype.
+     */
+    private OWLClassExpression rebuildCardinality(OWLObjectCardinalityRestriction c,
+                                                  Map<String, String> canonicalKey) {
+        // Only the filler can contain placeholder IRIs
+        OWLClassExpression resolvedFiller = resolveTree(c.getFiller(), canonicalKey);
+
+        if (c instanceof OWLObjectMinCardinality) {
+            // ≥n R.C
+            return df.getOWLObjectMinCardinality(
+                    c.getCardinality(), c.getProperty(), resolvedFiller);
+        }
+        if (c instanceof OWLObjectMaxCardinality) {
+            // ≤n R.C
+            return df.getOWLObjectMaxCardinality(
+                    c.getCardinality(), c.getProperty(), resolvedFiller);
+        }
+        if (c instanceof OWLObjectExactCardinality) {
+            // =n R.C
+            return df.getOWLObjectExactCardinality(
+                    c.getCardinality(), c.getProperty(), resolvedFiller);
+        }
+
+        // Should never be reached — all three subtypes are handled above
+        throw new IllegalArgumentException("Unsupported cardinality type: " + c.getClass().getSimpleName());
     }
 
     /**
      * Rewrites the concept field of each DiamondSubterm —
      * replaces any duplicate placeholder IRI with its canonical.
-     * Must be called after deduplicate() and before ConceptMap.build().
      */
     public void resolveDiamondConcepts(Set<DiamondSubterm> diamonds) {
+        if (canonicalKey == null) return;
         for (DiamondSubterm d : diamonds) {
             if (d.concept == null) continue;
             d.concept = resolveTree(d.concept, canonicalKey);
-        }
-    }
-
-    private static class EntrySignature {
-        final Operator operator;
-        final String standpoint;
-        final OWLClassExpression resolvedTree;
-
-        EntrySignature(Operator operator,
-                       String standpoint,
-                       OWLClassExpression resolvedTree) {
-            this.operator    = operator;
-            this.standpoint  = standpoint;
-            this.resolvedTree = resolvedTree;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof EntrySignature)) return false;
-            EntrySignature that = (EntrySignature) o;
-            return operator == that.operator
-                    && Objects.equals(standpoint, that.standpoint)
-                    && Objects.equals(resolvedTree, that.resolvedTree);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(operator, standpoint, resolvedTree);
         }
     }
 }

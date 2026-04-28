@@ -9,7 +9,6 @@ import java.util.Set;
 
 public class NormalisedAxiom {
 
-    public final String key;
     public final Operator operator;
     public final String standpoint;
     public final StandpointAxiomType axiomType;
@@ -28,21 +27,19 @@ public class NormalisedAxiom {
     // Original manchester string — kept for logging only.
     public final String manchester;
 
-    // Direct SP_n placeholder references found in owlAxiom or owlTree.
+    // Direct SP_n placeholder references founded in owlAxiom or owlTree.
     // FC_n, FR_n are NOT included — they are real entities not placeholders.
     // Used by Trans(K) to recurse into children without re-walking the tree.
     public final Set<String> childKeys;
 
-    public NormalisedAxiom(String key,
-                           Operator operator,
-                           String standpoint,
-                           StandpointAxiomType axiomType,
-                           boolean isRoot,
-                           OWLAxiom owlAxiom,
-                           OWLClassExpression owlTree,
-                           String manchester,
-                           Set<String> childKeys) {
-        this.key        = key;
+    public NormalisedAxiom( Operator operator,
+                            String standpoint,
+                            StandpointAxiomType axiomType,
+                            boolean isRoot,
+                            OWLAxiom owlAxiom,
+                            OWLClassExpression owlTree,
+                            String manchester,
+                            Set<String> childKeys) {
         this.operator   = operator;
         this.standpoint = standpoint;
         this.axiomType  = axiomType;

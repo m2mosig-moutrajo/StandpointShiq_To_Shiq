@@ -55,7 +55,6 @@ public class SharpeningClosure {
     /**
      * Computes t^K for a single standpoint t.
      *
-     * Fixpoint algorithm:
      *   1. Start with {t, *}
      *   2. For each sharpening s1 ∩ ... ∩ sn ⪯ s:
      *      if all of s1,...,sn are already in the closure → add s

@@ -135,7 +135,7 @@ public class ManchesterToOWLConverter {
         if (mp.manchester.contains(" Type: ")) {
             OWLAxiom owlAxiom = tryParseAxiom(mp.manchester, normaliser, key);
             return new NormalisedAxiom(
-                    key, mp.operator, mp.standpoint,
+                    mp.operator, mp.standpoint,
                     type, mp.isRoot,
                     owlAxiom, null, mp.manchester,
                     extractChildKeysFromAxiom(owlAxiom));
@@ -146,7 +146,7 @@ public class ManchesterToOWLConverter {
             OWLClassExpression owlTree =
                     tryParseExpression(mp.manchester, normaliser, key);
             return new NormalisedAxiom(
-                    key, mp.operator, mp.standpoint,
+                    mp.operator, mp.standpoint,
                     type, mp.isRoot,
                     null, owlTree, mp.manchester,
                     extractChildKeysFromExpression(owlTree));
@@ -159,7 +159,7 @@ public class ManchesterToOWLConverter {
         OWLAxiom owlAxiom = tryParseAxiom(axiomString, normaliser, key);
 
         return new NormalisedAxiom(
-                key, mp.operator, mp.standpoint,
+                mp.operator, mp.standpoint,
                 type, mp.isRoot,
                 owlAxiom, null, mp.manchester,
                 extractChildKeysFromAxiom(owlAxiom));
