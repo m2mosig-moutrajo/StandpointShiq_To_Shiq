@@ -107,7 +107,7 @@ public class StandpointPanel extends JPanel {
             loadIntoProtege(translated);
 
         } catch (Exception ex) {
-            textAreaLog.append("\n❌ Error: " + ex.getMessage() + "\n");
+            textAreaLog.append("\nError: " + ex.getMessage() + "\n");
             ex.printStackTrace();
         } finally {
             // Always restore System.out even if pipeline throws
