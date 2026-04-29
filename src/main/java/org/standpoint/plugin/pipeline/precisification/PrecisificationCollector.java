@@ -1,17 +1,18 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.pipeline.precisification;
 
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.Sharpening;
-import org.standpoint.plugin.pipeline.NormalisedAxiom;
-import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
+import org.standpoint.plugin.translation.DiamondExpression;
 
 import java.util.*;
 
 public class PrecisificationCollector {
 
-    private final NormalisedKnowledgeBase kb;
+    private final StandpointKnowledgeBase kb;
 
-    public PrecisificationCollector(NormalisedKnowledgeBase kb) {
+    public PrecisificationCollector(StandpointKnowledgeBase kb) {
         this.kb = kb;
     }
 
@@ -52,8 +53,8 @@ public class PrecisificationCollector {
     /**
      * Collects all diamond subterms {◇_sC ∈ ST(K)} from owlMap.
      */
-    public Set<DiamondSubterm> collectDiamondSubterms() {
-        Set<DiamondSubterm> diamonds = new LinkedHashSet<>();
+    public Set<DiamondExpression> collectDiamondSubterms() {
+        Set<DiamondExpression> diamonds = new LinkedHashSet<>();
         if (kb.owlMap == null) return diamonds;
 
         for (Map.Entry<String, NormalisedAxiom> e : kb.owlMap.entrySet()) {
@@ -67,7 +68,7 @@ public class PrecisificationCollector {
                 if (!canonical.equals(e.getKey())) continue;
             }
 
-            diamonds.add(new DiamondSubterm(ax.standpoint, ax.owlTree, e.getKey()));
+            diamonds.add(new DiamondExpression(ax.standpoint, ax.owlTree, e.getKey()));
         }
         return diamonds;
     }

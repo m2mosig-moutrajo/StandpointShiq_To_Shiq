@@ -3,8 +3,9 @@ package org.standpoint.plugin.translation;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.Precisification;
-import org.standpoint.plugin.pipeline.NormalisedAxiom;
-import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
+import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
 
 import java.util.*;
 
@@ -21,19 +22,19 @@ import java.util.*;
  * (5) trans(π,C)(a)                      — for each root □_s[C(a)], each π ∈ σ(s)
  * (6) R^π(a,b)                           — for each root □_s[R(a,b)], each π ∈ σ(s)
  */
-public class TransK {
+public class StandpointTranslator {
 
-    private final NormalisedKnowledgeBase kb;
+    private final StandpointKnowledgeBase kb;
     private final PrecisificationSet precSet;
-    private final AuxiliaryNames aux;
+    private final AuxiliaryNameFactory aux;
     private final ConceptTranslator conceptTranslator;
     private final OWLDataFactory df;
     private final OWLOntologyManager manager;
 
-    public TransK(NormalisedKnowledgeBase kb,
-                  PrecisificationSet precSet,
-                  AuxiliaryNames aux,
-                  ConceptTranslator conceptTranslator) {
+    public StandpointTranslator(StandpointKnowledgeBase kb,
+                                PrecisificationSet precSet,
+                                AuxiliaryNameFactory aux,
+                                ConceptTranslator conceptTranslator) {
         this.kb                 = kb;
         this.precSet            = precSet;
         this.aux                = aux;
@@ -93,7 +94,7 @@ public class TransK {
                 translateRoleAssertion(e.getKey(), ax, (OWLObjectPropertyAssertionAxiom) ax.owlAxiom, piSK, output);
 
             } else {
-                System.out.println("WARNING TransK: unhandled axiom type for " + e.getKey() + ": " + ax.owlAxiom.getClass().getSimpleName());
+                System.out.println("WARNING StandpointTranslator: unhandled axiom type for " + e.getKey() + ": " + ax.owlAxiom.getClass().getSimpleName());
             }
         }
 

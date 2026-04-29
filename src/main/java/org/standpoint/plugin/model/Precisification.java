@@ -1,7 +1,7 @@
 package org.standpoint.plugin.model;
 
 import org.semanticweb.owlapi.model.OWLNamedIndividual;
-import org.standpoint.plugin.translation.DiamondSubterm;
+import org.standpoint.plugin.translation.DiamondExpression;
 
 import java.util.Objects;
 
@@ -30,7 +30,7 @@ public class Precisification {
 
     // The diamond subterm ◇_tC this precisification witnesses.
     // Null for STANDPOINT type.
-    public final DiamondSubterm diamond;
+    public final DiamondExpression diamond;
 
     // The named individual this precisification witnesses.
     // Null unless NAMED type.
@@ -39,7 +39,7 @@ public class Precisification {
     public Precisification(String id,
                            PrecisificationType type,
                            String standpoint,
-                           DiamondSubterm diamond,
+                           DiamondExpression diamond,
                            OWLNamedIndividual individual) {
         this.id         = id;
         this.type       = type;

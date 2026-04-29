@@ -1,4 +1,4 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.pipeline.precisification;
 
 import org.standpoint.plugin.model.Sharpening;
 
@@ -14,19 +14,19 @@ import java.util.*;
  * Used by Trans(K) to determine which standpoints a precisification
  * π_t must satisfy axioms for.
  */
-public class SharpeningClosure {
+public class SharpeningClosureCalculator {
 
     public static final String UNIVERSAL_STANDPOINT = "*";
 
-    // sharpenings from NormalisedKnowledgeBase — normal sharpenings only
+    // sharpenings from StandpointKnowledgeBase — normal sharpenings only
     // (zero and negated sharpenings have already been consumed by the pipeline)
     private final List<Sharpening> sharpenings;
 
     // all standpoint names appearing in the KB
     private final Set<String> allStandpoints;
 
-    public SharpeningClosure(List<Sharpening> sharpenings,
-                             Set<String> allStandpoints) {
+    public SharpeningClosureCalculator(List<Sharpening> sharpenings,
+                                       Set<String> allStandpoints) {
         this.sharpenings    = sharpenings;
         this.allStandpoints = allStandpoints;
     }

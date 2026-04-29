@@ -12,8 +12,8 @@ import java.util.*;
  * Two entries with the same concept get the same D_n regardless of
  * operator or standpoint.
  *
- * Used to build spToDiamondId map for AuxiliaryNames.
- * Also used to assign diamondId on DiamondSubterm objects for
+ * Used to build spToDiamondId map for AuxiliaryNameFactory.
+ * Also used to assign diamondId on DiamondExpression objects for
  * precisification naming.
  */
 public class ConceptMap {
@@ -29,7 +29,7 @@ public class ConceptMap {
     /**
      * Adds a single entry — SP_n key + its resolved concept.
      * If the concept is already known, reuses its D_n.
-     * Sets diamondId on DiamondSubterm if provided.
+     * Sets diamondId on DiamondExpression if provided.
      */
     public String addEntry(String spKey, OWLClassExpression concept) {
         String id = conceptToId.get(concept);
@@ -45,8 +45,8 @@ public class ConceptMap {
      * Builds from a set of DiamondSubterms — assigns diamondId on each.
      * Called for DIAMOND entries to set up precisification naming.
      */
-    public void build(Set<DiamondSubterm> diamonds) {
-        for (DiamondSubterm d : diamonds) {
+    public void build(Set<DiamondExpression> diamonds) {
+        for (DiamondExpression d : diamonds) {
             String id = addEntry(d.placeholderKey, d.concept);
             d.diamondId = id;
         }

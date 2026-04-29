@@ -1,8 +1,9 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.pipeline.precisification;
 
 import org.semanticweb.owlapi.model.OWLNamedIndividual;
 import org.standpoint.plugin.model.Precisification;
 import org.standpoint.plugin.model.PrecisificationType;
+import org.standpoint.plugin.translation.DiamondExpression;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,7 +37,7 @@ public class PrecisificationSet {
      */
     public static PrecisificationSet build(
             Set<String> standpoints,
-            Set<DiamondSubterm> diamonds,
+            Set<DiamondExpression> diamonds,
             Set<OWLNamedIndividual> individuals,
             Map<String, Set<String>> closures) {
 
@@ -52,7 +53,7 @@ public class PrecisificationSet {
         // π⁰_{s,C} and π¹_{s,C} — two per (standpoint, D_n) pair
         // π^a_{s,C} — one per (standpoint, D_n) × individual
         // Note: same D_n can appear with multiple standpoints
-        for (DiamondSubterm diamond : diamonds) {
+        for (DiamondExpression diamond : diamonds) {
             String s  = diamond.standpoint;
             String dn = diamond.diamondId;
 

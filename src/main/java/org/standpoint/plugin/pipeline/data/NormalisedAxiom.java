@@ -1,4 +1,4 @@
-package org.standpoint.plugin.pipeline;
+package org.standpoint.plugin.pipeline.data;
 
 import org.semanticweb.owlapi.model.OWLAxiom;
 import org.semanticweb.owlapi.model.OWLClassExpression;

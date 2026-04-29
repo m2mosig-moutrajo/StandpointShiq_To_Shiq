@@ -2,8 +2,8 @@ package org.standpoint.plugin.translation;
 
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.Precisification;
-import org.standpoint.plugin.pipeline.ManchesterToOWLConverter;
-import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
+import org.standpoint.plugin.pipeline.normalisation.ManchesterToOWLConverter;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 
 import java.util.*;
 
@@ -18,7 +18,7 @@ import java.util.*;
  * Resolution chain for SP_n → aux name:
  *   SP_8 → canonicalKey → SP_5 → spToDiamondId → D_2 → AUX_D_2_[π.id]
  */
-public class AuxiliaryNames {
+public class AuxiliaryNameFactory {
 
     private final String ontologyBase;
     private final OWLDataFactory df;
@@ -28,9 +28,9 @@ public class AuxiliaryNames {
     private final Map<String, OWLClass> classCache = new LinkedHashMap<>();
     private final Map<String, OWLObjectProperty> propertyCache = new LinkedHashMap<>();
 
-    public AuxiliaryNames(NormalisedKnowledgeBase kb,
-                          Map<String, String> spToDiamondId,
-                          OWLDataFactory df) {
+    public AuxiliaryNameFactory(StandpointKnowledgeBase kb,
+                                Map<String, String> spToDiamondId,
+                                OWLDataFactory df) {
         this.df             = df;
         this.canonicalKey   = kb.canonicalKey != null
                 ? kb.canonicalKey : Collections.emptyMap();

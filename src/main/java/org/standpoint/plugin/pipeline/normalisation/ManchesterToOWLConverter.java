@@ -1,10 +1,12 @@
-package org.standpoint.plugin.pipeline;
+package org.standpoint.plugin.pipeline.normalisation;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.model.StandpointAxiomType;
 import org.standpoint.plugin.normalisation.ManchesterNormaliser;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
@@ -16,9 +18,9 @@ public class ManchesterToOWLConverter {
     // and treated as normal OWL entities by Trans(K)
     public static final String PLUGIN_NS = "http://standpoint.org/placeholder#";
 
-    private final NormalisedKnowledgeBase result;
+    private final StandpointKnowledgeBase result;
 
-    public ManchesterToOWLConverter(NormalisedKnowledgeBase result) {
+    public ManchesterToOWLConverter(StandpointKnowledgeBase result) {
         this.result = result;
     }
 

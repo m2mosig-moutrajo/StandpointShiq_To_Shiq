@@ -26,8 +26,8 @@
       <groupId>net.sourceforge.owlapi</groupId>
       <artifactId>owlapi-distribution</artifactId>
       <version>4.5.9</version>
-<!--      <scope>provided</scope>-->
-      <scope>compile</scope>  <!-- change from provided to compile -->
+      <scope>provided</scope>
+<!--      <scope>compile</scope>-->
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>

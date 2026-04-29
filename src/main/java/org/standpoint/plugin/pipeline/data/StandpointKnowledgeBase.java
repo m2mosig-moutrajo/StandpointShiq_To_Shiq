@@ -1,4 +1,4 @@
-package org.standpoint.plugin.pipeline;
+package org.standpoint.plugin.pipeline.data;
 
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.model.ModalPlaceholder;
@@ -7,7 +7,7 @@ import org.standpoint.plugin.model.Sharpening;
 import java.util.List;
 import java.util.Map;
 
-public class NormalisedKnowledgeBase {
+public class StandpointKnowledgeBase {
 
     public final Map<String, ModalPlaceholder> manchesterMap;
     public final List<Sharpening> sharpenings;
@@ -15,7 +15,7 @@ public class NormalisedKnowledgeBase {
     public Map<String, NormalisedAxiom> owlMap;
     public Map<String, String> canonicalKey;
 
-    public NormalisedKnowledgeBase(Map<String, ModalPlaceholder> manchesterMap,
+    public StandpointKnowledgeBase(Map<String, ModalPlaceholder> manchesterMap,
                                    List<Sharpening> sharpenings,
                                    OWLOntology sourceOntology) {
         this.manchesterMap = manchesterMap;

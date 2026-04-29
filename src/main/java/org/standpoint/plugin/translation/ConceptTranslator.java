@@ -3,8 +3,9 @@ package org.standpoint.plugin.translation;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.Precisification;
-import org.standpoint.plugin.pipeline.NormalisedAxiom;
-import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
+import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,20 +26,20 @@ import java.util.stream.Collectors;
  * trans(π, □_sC)     = ⊓_{π'∈σ(s)} AUX_D_n_{π'.id}   (SP_n with BOX)
  * trans(π, ◇_sC)     = ⊔_{π'∈σ(s)} AUX_D_n_{π'.id}   (SP_n with DIAMOND)
  *
- * SP_n placeholders are detected via AuxiliaryNames.isPlaceholder().
+ * SP_n placeholders are detected via AuxiliaryNameFactory.isPlaceholder().
  * For modal cases, trans does NOT recurse into C — it produces an
  * intersection/union of auxiliary names. The link AUX_D_n_π ⊑ trans(π,C)
- * is produced separately as Type (1) axioms in TransK.
+ * is produced separately as Type (1) axioms in StandpointTranslator.
  */
 public class ConceptTranslator {
 
     private final OWLDataFactory df;
-    private final AuxiliaryNames aux;
+    private final AuxiliaryNameFactory aux;
     private final Map<String, NormalisedAxiom> owlMap;
     private final PrecisificationSet precSet;
 
-    public ConceptTranslator(NormalisedKnowledgeBase kb,
-                             AuxiliaryNames aux,
+    public ConceptTranslator(StandpointKnowledgeBase kb,
+                             AuxiliaryNameFactory aux,
                              PrecisificationSet precSet) {
         this.df      = kb.sourceOntology
                 .getOWLOntologyManager().getOWLDataFactory();
@@ -57,7 +58,7 @@ public class ConceptTranslator {
         // Named class — real concept or SP_n placeholder
         if (concept instanceof OWLClass) {
             OWLClass cls = (OWLClass) concept;
-            if (AuxiliaryNames.isPlaceholder(cls)) {
+            if (AuxiliaryNameFactory.isPlaceholder(cls)) {
                 return transPlaceholder(cls);
             }
             return aux.getCopiedConcept(cls, pi);
@@ -69,7 +70,7 @@ public class ConceptTranslator {
             OWLClassExpression inner = c.getOperand();
             if (inner instanceof OWLClass) {
                 OWLClass cls = (OWLClass) inner;
-                if (AuxiliaryNames.isPlaceholder(cls)) {
+                if (AuxiliaryNameFactory.isPlaceholder(cls)) {
                     return df.getOWLObjectComplementOf(
                             transPlaceholder(cls));
                 }
@@ -175,7 +176,7 @@ public class ConceptTranslator {
      * indexed by π' ranging over σ(s), not the containing π.
      */
     private OWLClassExpression transPlaceholder(OWLClass placeholder) {
-        String spKey = AuxiliaryNames.getPlaceholderKey(placeholder);
+        String spKey = AuxiliaryNameFactory.getPlaceholderKey(placeholder);
         NormalisedAxiom ax = owlMap.get(spKey);
 
         if (ax == null) {

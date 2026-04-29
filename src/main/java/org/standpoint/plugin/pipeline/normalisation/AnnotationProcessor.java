@@ -1,4 +1,4 @@
-package org.standpoint.plugin.pipeline;
+package org.standpoint.plugin.pipeline.normalisation;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
@@ -8,6 +8,7 @@ import org.standpoint.plugin.model.*;
 import org.standpoint.plugin.normalisation.ModalDualityRestorer;
 import org.standpoint.plugin.normalisation.ManchesterNormaliser;
 import org.standpoint.plugin.normalisation.ModalExpressionDecomposer;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.util.PipelineLogger;
 import org.standpoint.plugin.util.PlaceholderCounter;
 import org.w3c.dom.Document;
@@ -20,7 +21,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.util.*;
 
-public class StandpointPipeline {
+public class AnnotationProcessor {
 
     private final OWLOntology ontology;
     private final PlaceholderCounter placeholderCounter;
@@ -31,18 +32,18 @@ public class StandpointPipeline {
     private OWLOntology helperOntology;
     private ManchesterNormaliser normaliser;
 
-    public StandpointPipeline(OWLOntology ontology) {
+    public AnnotationProcessor(OWLOntology ontology) {
         this.ontology           = ontology;
         this.placeholderCounter = new PlaceholderCounter();
     }
 
-    public StandpointPipeline(OWLOntology ontology, PipelineLogger.Level logLevel) {
+    public AnnotationProcessor(OWLOntology ontology, PipelineLogger.Level logLevel) {
         this.ontology           = ontology;
         this.placeholderCounter = new PlaceholderCounter();
         PipelineLogger.setLevel(logLevel);
     }
 
-    public NormalisedKnowledgeBase run() throws Exception {
+    public StandpointKnowledgeBase run() throws Exception {
 
         // Step 1 — Load
         Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap = OntologyLoader.loadAxiomLabels(ontology);
@@ -96,7 +97,7 @@ public class StandpointPipeline {
 
         printResults(placeholderMap, sharpenings);
 
-        return new NormalisedKnowledgeBase(placeholderMap, sharpenings, ontology);
+        return new StandpointKnowledgeBase(placeholderMap, sharpenings, ontology);
     }
 
     private List<OntologyLoader.AxiomWithLabel> expandFormulas(

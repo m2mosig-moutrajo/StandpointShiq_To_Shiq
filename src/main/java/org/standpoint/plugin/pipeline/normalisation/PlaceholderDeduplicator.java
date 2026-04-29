@@ -1,8 +1,9 @@
-package org.standpoint.plugin.pipeline;
+package org.standpoint.plugin.pipeline.normalisation;
 
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.EntrySignature;
-import org.standpoint.plugin.translation.DiamondSubterm;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
+import org.standpoint.plugin.translation.DiamondExpression;
 
 import java.util.*;
 
@@ -213,14 +214,18 @@ public class PlaceholderDeduplicator {
     }
 
     /**
-     * Rewrites the concept field of each DiamondSubterm —
+     * Rewrites the concept field of each DiamondExpression —
      * replaces any duplicate placeholder IRI with its canonical.
      */
-    public void resolveDiamondConcepts(Set<DiamondSubterm> diamonds) {
+    public void resolveDiamondConcepts(Set<DiamondExpression> diamonds) {
         if (canonicalKey == null) return;
-        for (DiamondSubterm d : diamonds) {
+        for (DiamondExpression d : diamonds) {
             if (d.concept == null) continue;
             d.concept = resolveTree(d.concept, canonicalKey);
         }
+    }
+
+    public void setCanonicalKey(Map<String, String> canonicalKey) {
+        this.canonicalKey = canonicalKey;
     }
 }

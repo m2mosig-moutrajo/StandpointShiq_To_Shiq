@@ -2,8 +2,8 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.pipeline.NormalisedKnowledgeBase;
-import org.standpoint.plugin.pipeline.StandpointPipeline;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
+import org.standpoint.plugin.pipeline.normalisation.AnnotationProcessor;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
@@ -72,7 +72,7 @@ public class StandpointPipelineTest {
 
         OWLOntology ontology = buildOntology(axioms, formulas, sharpenings);
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
-        NormalisedKnowledgeBase result = new StandpointPipeline(ontology).run();
+        StandpointKnowledgeBase result = new AnnotationProcessor(ontology).run();
 
         long actualRoots = result.manchesterMap.values().stream()
                 .filter(e -> e.isRoot)
@@ -566,7 +566,7 @@ public class StandpointPipelineTest {
 
     // ===== Helpers =====
 
-    private int countFresh(NormalisedKnowledgeBase result, String prefix) {
+    private int countFresh(StandpointKnowledgeBase result, String prefix) {
         Set<String> found = new HashSet<>();
         for (Map.Entry<String, ?> e : result.manchesterMap.entrySet()) {
             String manchester = result.manchesterMap
