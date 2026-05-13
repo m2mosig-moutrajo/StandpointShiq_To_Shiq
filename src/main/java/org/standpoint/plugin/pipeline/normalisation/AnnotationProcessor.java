@@ -128,7 +128,7 @@ public class AnnotationProcessor {
                 OntologyLoader.AxiomWithLabel axiomWithLabel =
                         axiomLabelMap.get(literal.ref);
                 if (axiomWithLabel == null) {
-                    PipelineLogger.result("WARNING: axiom ref '"
+                    PipelineLogger.log("WARNING: axiom ref '"
                             + literal.ref + "' not found!");
                     continue;
                 }
@@ -732,17 +732,17 @@ public class AnnotationProcessor {
 
     private void printResults(Map<String, ModalPlaceholder> placeholderMap,
                               List<Sharpening> sharpenings) {
-        PipelineLogger.result("\n=== FULL NORMALISED PLACEHOLDER MAP ===\n");
+        PipelineLogger.log("\n=== FULL NORMALISED PLACEHOLDER MAP ===\n");
         placeholderMap.forEach((k, v) ->
-                PipelineLogger.result(k + " → " + v));
+                PipelineLogger.log(k + " → " + v));
 
-        PipelineLogger.result("\n=== SHARPENINGS ===\n");
+        PipelineLogger.log("\n=== SHARPENINGS ===\n");
         if (sharpenings.isEmpty()) {
-            PipelineLogger.result("(none)");
+            PipelineLogger.log("(none)");
         } else {
-            sharpenings.forEach(s -> PipelineLogger.result(s.toString()));
+            sharpenings.forEach(s -> PipelineLogger.log(s.toString()));
         }
-        PipelineLogger.result("\n======================================\n\n");
+        PipelineLogger.log("\n======================================\n\n");
     }
 
     private String extractInnerContent(String xml) {
