@@ -32,13 +32,10 @@ import java.util.*;
 public class PrecisificationPipeline {
 
     private final StandpointKnowledgeBase kb;
-    private final PipelineLogger          logger;
     private final OWLDataFactory          df;
 
-    public PrecisificationPipeline(StandpointKnowledgeBase kb,
-                                   PipelineLogger.Level level) {
+    public PrecisificationPipeline(StandpointKnowledgeBase kb) {
         this.kb     = kb;
-        this.logger = new PipelineLogger(level);
         this.df     = kb.sourceOntology
                 .getOWLOntologyManager().getOWLDataFactory();
     }
@@ -51,26 +48,26 @@ public class PrecisificationPipeline {
         deduplicator.setCanonicalKey(kb.canonicalKey);
 
         // Step 3 — Collect standpoints and diamonds
-        logger.log("\n=== STEP 3 — Collect standpoints and diamonds ===");
+        PipelineLogger.log("\n=== STEP 3 — Collect standpoints and diamonds ===");
         PrecisificationCollector collector =
                 new PrecisificationCollector(kb);
         Set<String>         standpoints = collector.collectStandpoints();
         Set<DiamondExpression> diamonds    = collector.collectDiamondSubterms();
 
-        logger.log("Standpoints: " + standpoints);
-        logger.log("Diamond subterms: " + diamonds.size());
+        PipelineLogger.log("Standpoints: " + standpoints);
+        PipelineLogger.log("Diamond subterms: " + diamonds.size());
         diamonds.forEach(d ->
-                logger.log("  " + d.placeholderKey
+                PipelineLogger.log("  " + d.placeholderKey
                         + " → ◇_" + d.standpoint
                         + "[" + d.concept + "]"));
 
         // Step 3b — Canonicalise placeholder IRIs inside diamond concepts
-        logger.log("\n=== STEP 3b — Resolve diamond concepts ===");
+        PipelineLogger.log("\n=== STEP 3b — Resolve diamond concepts ===");
         deduplicator.resolveDiamondConcepts(diamonds);
-        logger.log("  Diamond concepts resolved.");
+        PipelineLogger.log("  Diamond concepts resolved.");
 
         // Step 4 — Build concept map for all canonical non-root entries
-        logger.log("\n=== STEP 4 — Concept map (D_n assignment) ===");
+        PipelineLogger.log("\n=== STEP 4 — Concept map (D_n assignment) ===");
         ConceptMap conceptMap = new ConceptMap();
 
         for (Map.Entry<String, NormalisedAxiom> e : kb.owlMap.entrySet()) {
@@ -93,8 +90,8 @@ public class PrecisificationPipeline {
             if (dn != null) d.diamondId = dn;
         }
 
-        logger.log("  D_n   op       standpoint   concept");
-        logger.log("  ────────────────────────────────────────────");
+        PipelineLogger.log("  D_n   op       standpoint   concept");
+        PipelineLogger.log("  ────────────────────────────────────────────");
         kb.owlMap.forEach((key, ax) -> {
             if (ax.isRoot || ax.owlTree == null) return;
             String canonical = kb.canonicalKey.getOrDefault(key, key);
@@ -102,50 +99,56 @@ public class PrecisificationPipeline {
             String dn = conceptMap.getIdForSp(key);
             String op = ax.operator == org.standpoint.plugin.model.Operator.BOX
                     ? "□" : "◇";
-            logger.log(String.format("  %-6s %-8s %-12s %s",
+            PipelineLogger.log(String.format("  %-6s %-8s %-12s %s",
                     dn, op, ax.standpoint, ax.owlTree));
         });
 
         // Step 5 — Compute standpoint closures
-        logger.log("\n=== STEP 5 — Standpoint closures t^K ===");
+        PipelineLogger.log("\n=== STEP 5 — Standpoint closures t^K ===");
         SharpeningClosureCalculator closureCalc =
                 new SharpeningClosureCalculator(kb.sharpenings, standpoints);
         Map<String, Set<String>> closures = closureCalc.computeAllClosures();
         closures.forEach((s, c) ->
-                logger.log("  " + s + "^K = " + c));
+                PipelineLogger.log("  " + s + "^K = " + c));
+
+        // Step 5b — Collect only individuals actually used in normalised axioms
+        Set<OWLNamedIndividual> usedIndividuals = collectUsedIndividuals(kb);
+        PipelineLogger.log("\n=== STEP 5b — Used individuals ===");
+        PipelineLogger.log("  All individuals: " + kb.sourceOntology.getIndividualsInSignature().size());
+        PipelineLogger.log("  Used individuals: " + usedIndividuals.size());
+        usedIndividuals.forEach(i -> PipelineLogger.log("    " + i.getIRI().getShortForm()));
 
         // Step 6 — Build precisification set
-        logger.log("\n=== STEP 6 — Build Π_K ===");
-        Set<OWLNamedIndividual> individuals =
-                kb.sourceOntology.getIndividualsInSignature();
-        PrecisificationSet precSet = PrecisificationSet.build(
-                standpoints, diamonds, individuals, closures);
+        PipelineLogger.log("\n=== STEP 6 — Build Π_K ===");
 
-        logger.log("  Total precisifications: " + precSet.size());
-        logger.log("  STANDPOINT worlds:");
+        PrecisificationSet precSet = PrecisificationSet.build(
+                standpoints, diamonds, usedIndividuals, closures);
+
+        PipelineLogger.log("  Total precisifications: " + precSet.size());
+        PipelineLogger.log("  STANDPOINT worlds:");
         precSet.getAllPrecisifications().stream()
                 .filter(p -> p.type ==
                         org.standpoint.plugin.model.PrecisificationType.STANDPOINT)
-                .forEach(p -> logger.log("    " + p));
-        logger.log("  ANONYMOUS worlds:");
+                .forEach(p -> PipelineLogger.log("    " + p));
+        PipelineLogger.log("  ANONYMOUS worlds:");
         precSet.getAllPrecisifications().stream()
                 .filter(p -> p.type ==
                         org.standpoint.plugin.model.PrecisificationType.ANONYMOUS_0
                         || p.type ==
                         org.standpoint.plugin.model.PrecisificationType.ANONYMOUS_1)
-                .forEach(p -> logger.log("    " + p));
-        logger.log("  NAMED worlds:");
+                .forEach(p -> PipelineLogger.log("    " + p));
+        PipelineLogger.log("  NAMED worlds:");
         precSet.getAllPrecisifications().stream()
                 .filter(p -> p.type ==
                         org.standpoint.plugin.model.PrecisificationType.NAMED)
-                .forEach(p -> logger.log("    " + p));
+                .forEach(p -> PipelineLogger.log("    " + p));
 
-        logger.log("  σ per standpoint:");
+        PipelineLogger.log("  σ per standpoint:");
         standpoints.forEach(s ->
-                logger.log("    σ(" + s + ") = " + precSet.sigma(s)));
+                PipelineLogger.log("    σ(" + s + ") = " + precSet.sigma(s)));
 
         // Step 7 — Build SP_n → D_n flat map
-        logger.log("\n=== STEP 7 — SP_n → D_n resolution map ===");
+        PipelineLogger.log("\n=== STEP 7 — SP_n → D_n resolution map ===");
         Map<String, String> spToDiamondId = new LinkedHashMap<>();
 
         // canonical entries
@@ -166,11 +169,35 @@ public class PrecisificationPipeline {
         });
 
         spToDiamondId.forEach((sp, dn) ->
-                logger.log("  " + sp + " → " + dn));
+                PipelineLogger.log("  " + sp + " → " + dn));
 
-        logger.log("\n✅ Precisification pipeline complete.");
+        PipelineLogger.log("\n✅ Precisification pipeline complete.");
         return new PrecisificationContext(
                 standpoints, diamonds, closures,
                 precSet, spToDiamondId, conceptMap);
+    }
+    /**
+     * Collects all individuals that actually appear in at least one
+     * normalised axiom entry in owlMap — either as concept assertions
+     * or role assertions.
+     * Individuals that exist in the ontology signature but are never
+     * referenced in any standpoint axiom are excluded — they would
+     * otherwise create unnecessary named precisification worlds.
+     */
+    private Set<OWLNamedIndividual> collectUsedIndividuals(
+            StandpointKnowledgeBase kb) {
+
+        Set<OWLNamedIndividual> used = new LinkedHashSet<>();
+
+        for (NormalisedAxiom ax : kb.owlMap.values()) {
+            if (ax.owlAxiom != null) {
+                used.addAll(ax.owlAxiom.getIndividualsInSignature());
+            }
+            if (ax.owlTree != null) {
+                used.addAll(ax.owlTree.getIndividualsInSignature());
+            }
+        }
+
+        return used;
     }
 }

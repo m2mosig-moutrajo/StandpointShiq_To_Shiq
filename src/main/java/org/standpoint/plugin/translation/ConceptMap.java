@@ -34,7 +34,7 @@ public class ConceptMap {
     public String addEntry(String spKey, OWLClassExpression concept) {
         String id = conceptToId.get(concept);
         if (id == null) {
-            id = "D_" + counter++;
+            id = "D" + counter++;
             conceptToId.put(concept, id);
         }
         spToId.put(spKey, id);

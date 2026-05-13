@@ -13,20 +13,22 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test2.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test2Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test1.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test1Translated.rdf");
+
+        PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
         OWLOntologyManager manager  = OWLManager.createOWLOntologyManager();
         OWLOntology        ontology = manager.loadOntologyFromOntologyDocument(inputFile);
 
         // Pipeline 1 — Normalise
-        StandpointKnowledgeBase kb = new NormalisationPipeline(ontology, PipelineLogger.Level.OFF).run();
+        StandpointKnowledgeBase kb = new NormalisationPipeline(ontology).run();
         if (kb == null) return;
 
         // Pipeline 2 — Build worlds
-        PrecisificationContext ctx = new PrecisificationPipeline(kb, PipelineLogger.Level.OFF).run();
+        PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
 
         // Pipeline 3 — Translate and save
-        new TranslationPipeline(kb, ctx, outputFile, PipelineLogger.Level.OFF).run();
+        new TranslationPipeline(kb, ctx, outputFile).run();
     }
 }

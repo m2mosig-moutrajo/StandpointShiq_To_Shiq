@@ -55,22 +55,27 @@ public class Sharpening {
             Node intersectionNode = getChildByName(lhsNode, "intersection");
 
             if (intersectionNode != null) {
-                // Multiple standpoints in intersection
                 NodeList standpoints = intersectionNode.getChildNodes();
                 for (int i = 0; i < standpoints.getLength(); i++) {
                     Node child = standpoints.item(i);
-                    if (child.getNodeType() == Node.ELEMENT_NODE
-                            && child.getNodeName().equals("standpoint")) {
+                    if (child.getNodeType() != Node.ELEMENT_NODE) continue;
+
+                    if (child.getNodeName().equals("standpoint")) {
                         lhsStandpoints.add(child.getTextContent().trim());
+                    } else if (child.getNodeName().equals("zero")) {
+                        lhsStandpoints.add("0");   // ← add zero as "0"
                     }
                 }
             } else {
-                // Single standpoint
-                Node standpointNode = getChildByName(lhsNode, "standpoint");
-                if (standpointNode != null) {
-                    lhsStandpoints.add(standpointNode.getTextContent().trim());
-                }
+            // Single standpoint or zero
+            Node standpointNode = getChildByName(lhsNode, "standpoint");
+            Node zeroNodeLhs   = getChildByName(lhsNode, "zero");
+            if (standpointNode != null) {
+                lhsStandpoints.add(standpointNode.getTextContent().trim());
+            } else if (zeroNodeLhs != null) {
+                lhsStandpoints.add("0");
             }
+        }
 
             // Parse RHS
             Node rhsNode = getChildByName(sharpening, "rhs");

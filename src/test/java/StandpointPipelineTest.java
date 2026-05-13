@@ -71,7 +71,6 @@ public class StandpointPipelineTest {
         ExpectedCounts expected = computeExpected(formulas, sharpenings);
 
         OWLOntology ontology = buildOntology(axioms, formulas, sharpenings);
-        PipelineLogger.setLevel(PipelineLogger.Level.ON);
         StandpointKnowledgeBase result = new AnnotationProcessor(ontology).run();
 
         long actualRoots = result.manchesterMap.values().stream()

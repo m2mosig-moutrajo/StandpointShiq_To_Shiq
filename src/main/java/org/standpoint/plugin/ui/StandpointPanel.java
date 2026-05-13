@@ -74,9 +74,9 @@ public class StandpointPanel extends JPanel {
 
         try {
             // ── Pipeline 1 — Normalisation ─────────────────────────────
-            textAreaLog.append("=== Pipeline 1 — Normalisation ===\n");
+            textAreaLog.append("==== Pipeline 1 — Normalisation ====\n");
             StandpointKnowledgeBase kb =
-                    new NormalisationPipeline(ontology, logLevel).run();
+                    new NormalisationPipeline(ontology).run();
 
             if (kb == null || kb.manchesterMap.isEmpty()) {
                 textAreaLog.append("No standpoint formulas found.\n");
@@ -87,18 +87,18 @@ public class StandpointPanel extends JPanel {
                     + kb.manchesterMap.size() + "\n");
 
             // ── Pipeline 2 — Build worlds ──────────────────────────────
-            textAreaLog.append("\n=== Pipeline 2 — Precisification ===\n");
+            textAreaLog.append("\n==== Pipeline 2 — Precisification ====\n");
             PrecisificationContext ctx =
-                    new PrecisificationPipeline(kb, logLevel).run();
+                    new PrecisificationPipeline(kb).run();
 
             textAreaLog.append("Precisifications built: "
                     + ctx.precSet.size() + "\n");
 
             // ── Pipeline 3 — Translate ─────────────────────────────────
             // outputFile is null — pipeline returns OWLOntology without saving
-            textAreaLog.append("\n=== Pipeline 3 — Translation ===\n");
+            textAreaLog.append("\n==== Pipeline 3 — Translation ====\n");
             OWLOntology translated =
-                    new TranslationPipeline(kb, ctx, null, logLevel).run();
+                    new TranslationPipeline(kb, ctx, null).run();
 
             textAreaLog.append("Axioms produced: "
                     + translated.getAxiomCount() + "\n");

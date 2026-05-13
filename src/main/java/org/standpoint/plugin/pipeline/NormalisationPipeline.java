@@ -24,9 +24,9 @@ public class NormalisationPipeline {
     private final OWLOntology     ontology;
     private final PipelineLogger  logger;
 
-    public NormalisationPipeline(OWLOntology ontology, PipelineLogger.Level level) {
+    public NormalisationPipeline(OWLOntology ontology) {
         this.ontology = ontology;
-        this.logger   = new PipelineLogger(level);
+        this.logger   = new PipelineLogger();
     }
 
     public StandpointKnowledgeBase run() throws Exception {

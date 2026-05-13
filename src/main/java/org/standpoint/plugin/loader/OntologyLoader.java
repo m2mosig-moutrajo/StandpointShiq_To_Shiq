@@ -92,6 +92,14 @@ public class OntologyLoader {
 
         if (labelProp == null) return axiomMap;
 
+        // EquivalentClasses axioms
+        for (OWLEquivalentClassesAxiom axiom :
+                ontology.getAxioms(AxiomType.EQUIVALENT_CLASSES)) {
+            extractAxiomLabel(axiom, labelProp,
+                    StandpointAxiomType.CONCEPT_INCLUSION,
+                    axiomMap);
+        }
+
         // GCI axioms
         for (OWLSubClassOfAxiom axiom : ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
             extractAxiomLabel(axiom, labelProp,

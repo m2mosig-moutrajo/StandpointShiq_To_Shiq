@@ -1,6 +1,7 @@
 package org.standpoint.plugin.pipeline.normalisation;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
+import org.semanticweb.owlapi.manchestersyntax.renderer.ManchesterOWLSyntaxOWLObjectRendererImpl;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.loader.FormulaParser;
 import org.standpoint.plugin.loader.OntologyLoader;
@@ -33,14 +34,13 @@ public class AnnotationProcessor {
     private ManchesterNormaliser normaliser;
 
     public AnnotationProcessor(OWLOntology ontology) {
-        this.ontology           = ontology;
+        this.ontology = ontology;
         this.placeholderCounter = new PlaceholderCounter();
     }
 
     public AnnotationProcessor(OWLOntology ontology, PipelineLogger.Level logLevel) {
-        this.ontology           = ontology;
+        this.ontology = ontology;
         this.placeholderCounter = new PlaceholderCounter();
-        PipelineLogger.setLevel(logLevel);
     }
 
     public StandpointKnowledgeBase run() throws Exception {
@@ -59,6 +59,9 @@ public class AnnotationProcessor {
 
         // Step 2 — Expand formulas, apply Rule (1) for diamond operators
         List<OntologyLoader.AxiomWithLabel> expandedAxioms = expandFormulas(formulas, axiomLabelMap, sharpenings);
+
+        // Step 2b — Wrap unreferenced and unlabelled axioms as □_*[axiom]
+        expandedAxioms.addAll(collectUnreferencedAxioms(axiomLabelMap, expandedAxioms, formulas));
 
         logExpandedFormulas(expandedAxioms);
 
@@ -95,6 +98,10 @@ public class AnnotationProcessor {
         // Step 12 — Final NNF loop + modal duality restoration
         applyFinalNNFLoop(placeholderMap);
 
+        // Step 13 — Remove trivial sharpenings (LHS contains 0)
+        sharpenings.removeIf(s -> s.lhsStandpoints.contains("0"));
+        PipelineLogger.log("Sharpenings after trivial removal: " + sharpenings);
+
         printResults(placeholderMap, sharpenings);
 
         return new StandpointKnowledgeBase(placeholderMap, sharpenings, ontology);
@@ -108,7 +115,7 @@ public class AnnotationProcessor {
         List<OntologyLoader.AxiomWithLabel> result = new ArrayList<>();
 
         for (FormulaParser.ParsedFormula formula : formulas) {
-            String operator   = formula.operator;
+            String operator = formula.operator;
             String standpoint = formula.standpoint;
 
             // Rule (1): ◇_s[φ] → fresh FS ⪯ s, □_FS[φ]
@@ -118,7 +125,7 @@ public class AnnotationProcessor {
                         Collections.singletonList(freshStandpoint), standpoint));
                 PipelineLogger.log("Rule (1) applied on formula ◇_" + standpoint
                         + " → fresh standpoint: " + freshStandpoint + " ⪯ " + standpoint);
-                operator   = "box";
+                operator = "box";
                 standpoint = freshStandpoint;
             }
 
@@ -133,24 +140,64 @@ public class AnnotationProcessor {
 
                 String innerContent = extractInnerContent(
                         axiomWithLabel.standpointLabels.get(0));
-                String wrappedLabel = literal.negated
-                        ? "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
-                        + "\" negatedInner=\"true\">" + innerContent + "</modal>"
-                        : "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
-                        + "\">" + innerContent + "</modal>";
+                if (isEquivalentTo(innerContent)) {
+                    List<String> split = splitEquivalentTo(innerContent);
+                    for (String gci : split) {
+                        String wrappedLabel = literal.negated
+                                ? "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
+                                + "\" negatedInner=\"true\">" + gci + "</modal>"
+                                : "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
+                                + "\">" + gci + "</modal>";
+                        result.add(new OntologyLoader.AxiomWithLabel(
+                                axiomWithLabel.axiom,
+                                Collections.singletonList(wrappedLabel),
+                                StandpointAxiomType.CONCEPT_INCLUSION));
+                    }
+                } else {
+                    String wrappedLabel = literal.negated
+                            ? "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
+                            + "\" negatedInner=\"true\">" + innerContent + "</modal>"
+                            : "<modal op=\"" + operator + "\" standpoint=\"" + standpoint
+                            + "\">" + innerContent + "</modal>";
 
-                result.add(new OntologyLoader.AxiomWithLabel(
-                        axiomWithLabel.axiom,
-                        Collections.singletonList(wrappedLabel),
-                        axiomWithLabel.axiomType));
+                    result.add(new OntologyLoader.AxiomWithLabel(
+                            axiomWithLabel.axiom,
+                            Collections.singletonList(wrappedLabel),
+                            axiomWithLabel.axiomType));
+                }
             }
         }
         return result;
     }
 
+    /**
+     * Returns true if the inner content of an axiom label is an EquivalentTo axiom.
+     */
+    private boolean isEquivalentTo(String innerContent) {
+        return innerContent.contains("EquivalentTo:");
+    }
+
+    /**
+     * Splits "A EquivalentTo: B" into:
+     * ["A SubClassOf: B",  "B SubClassOf: A"]
+     * <p>
+     * The content B may contain nested <modal> XML elements —
+     * we split only on the first EquivalentTo: occurrence.
+     */
+    private List<String> splitEquivalentTo(String innerContent) {
+        int idx = innerContent.indexOf("EquivalentTo:");
+        String lhs = innerContent.substring(0, idx).trim();
+        String rhs = innerContent.substring(idx + "EquivalentTo:".length()).trim();
+
+        List<String> result = new ArrayList<>();
+        result.add(lhs + " SubClassOf: " + rhs);  // A ⊑ B
+        result.add(rhs + " SubClassOf: " + lhs);  // B ⊑ A
+        return result;
+    }
+
     private void buildHelperOntology() throws OWLOntologyCreationException {
-        helperManager  = OWLManager.createOWLOntologyManager();
-        helperDf       = helperManager.getOWLDataFactory();
+        helperManager = OWLManager.createOWLOntologyManager();
+        helperDf = helperManager.getOWLDataFactory();
         helperOntology = helperManager.createOntology(
                 IRI.create("http://standpoint.org/helper"));
         helperManager.addAxiom(helperOntology,
@@ -209,7 +256,7 @@ public class AnnotationProcessor {
                     || entry.standpointAxiomType != StandpointAxiomType.CONCEPT_INCLUSION)
                 continue;
 
-            int idx  = entry.manchester.indexOf("SubClassOf:");
+            int idx = entry.manchester.indexOf("SubClassOf:");
             String C = entry.manchester.substring(0, idx).trim();
             String D = entry.manchester.substring(idx + "SubClassOf:".length()).trim();
 
@@ -272,10 +319,10 @@ public class AnnotationProcessor {
             newConcept = normaliser.applyNNFToConceptExpression(concept);
             PipelineLogger.log("Rule (4)+(10) on " + e.getKey() + ": " + entry.manchester + " → " + individual + " Type: " + newConcept);
 
-            entry.manchester          = individual + " Type: " + newConcept;
-            entry.isNegatedAxiom      = false;
+            entry.manchester = individual + " Type: " + newConcept;
+            entry.isNegatedAxiom = false;
             entry.standpointAxiomType = StandpointAxiomType.CONCEPT_ASSERTION;
-            entry.isRoot              = true;
+            entry.isRoot = true;
         }
     }
 
@@ -294,14 +341,14 @@ public class AnnotationProcessor {
                     || entry.standpointAxiomType != StandpointAxiomType.ROLE_INCLUSION)
                 continue;
 
-            int idx  = entry.manchester.indexOf("SubPropertyOf:");
+            int idx = entry.manchester.indexOf("SubPropertyOf:");
             String S = entry.manchester.substring(0, idx).trim();
             String R = entry.manchester
                     .substring(idx + "SubPropertyOf:".length()).trim();
 
             String freshCa = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshCb = "FC_" + placeholderCounter.generateWithoutPrefix();
-            String freshR  = "FR_" + placeholderCounter.generateWithoutPrefix();
+            String freshR = "FR_" + placeholderCounter.generateWithoutPrefix();
             registerFreshClass(freshCa);
             registerFreshClass(freshCb);
             registerFreshRole(freshR);
@@ -353,9 +400,9 @@ public class AnnotationProcessor {
 
             String stripped = entry.manchester.replace("Individual:", "").replace("Facts:", "").trim();
             String[] tokens = stripped.trim().split("\\s+");
-            String a    = tokens[0];  // Alice
+            String a = tokens[0];  // Alice
             String role = tokens[1];  // knows
-            String b    = tokens[2];  // Bob
+            String b = tokens[2];  // Bob
 
             String freshCa = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshCb = "FC_" + placeholderCounter.generateWithoutPrefix();
@@ -410,7 +457,7 @@ public class AnnotationProcessor {
 
             String freshCa = "FC_" + placeholderCounter.generateWithoutPrefix();
             String freshCb = "FC_" + placeholderCounter.generateWithoutPrefix();
-            String freshR  = "FR_" + placeholderCounter.generateWithoutPrefix();
+            String freshR = "FR_" + placeholderCounter.generateWithoutPrefix();
             registerFreshClass(freshCa);
             registerFreshClass(freshCb);
             registerFreshRole(freshR);
@@ -536,7 +583,7 @@ public class AnnotationProcessor {
         PipelineLogger.log("\n=== STEP 11: FINAL NNF LOOP + DUALITY RESTORATION ===\n");
 
         boolean changed = true;
-        int iteration   = 0;
+        int iteration = 0;
         while (changed) {
             changed = false;
             iteration++;
@@ -549,7 +596,7 @@ public class AnnotationProcessor {
                     if (typeIdx != -1) {
                         // Assertion — extract concept part, apply NNF, reassemble
                         String individual = entry.manchester.substring(0, typeIdx).trim();
-                        String concept    = entry.manchester
+                        String concept = entry.manchester
                                 .substring(typeIdx + " Type: ".length()).trim();
                         String nnfConcept = normaliser.applyNNFToConceptExpression(concept);
                         nnf = individual + " Type: " + nnfConcept;
@@ -580,7 +627,7 @@ public class AnnotationProcessor {
                                        StandpointAxiomType type) {
         ModalPlaceholder e = new ModalPlaceholder(
                 parent.operator, parent.standpoint, manchester);
-        e.isRoot              = true;
+        e.isRoot = true;
         e.standpointAxiomType = type;
         return e;
     }
@@ -589,7 +636,7 @@ public class AnnotationProcessor {
     private ModalPlaceholder rootEntry(Operator operator, String standpoint,
                                        String manchester, StandpointAxiomType type) {
         ModalPlaceholder e = new ModalPlaceholder(operator, standpoint, manchester);
-        e.isRoot              = true;
+        e.isRoot = true;
         e.standpointAxiomType = type;
         return e;
     }
@@ -759,11 +806,11 @@ public class AnnotationProcessor {
         if (node.getNodeType() == Node.TEXT_NODE)
             return node.getTextContent().trim();
 
-        String op         = node.getAttributes().getNamedItem("op").getNodeValue();
+        String op = node.getAttributes().getNamedItem("op").getNodeValue();
         String standpoint = node.getAttributes().getNamedItem("standpoint").getNodeValue();
-        Node negated      = node.getAttributes().getNamedItem("negated");
+        Node negated = node.getAttributes().getNamedItem("negated");
         Node negatedInner = node.getAttributes().getNamedItem("negatedInner");
-        String symbol     = "box".equals(op) ? "□" : "◇";
+        String symbol = "box".equals(op) ? "□" : "◇";
 
         StringBuilder inner = new StringBuilder();
         NodeList children = node.getChildNodes();
@@ -803,5 +850,214 @@ public class AnnotationProcessor {
                 new javax.xml.transform.dom.DOMSource(node),
                 new javax.xml.transform.stream.StreamResult(writer));
         return writer.toString();
+    }
+
+    /**
+     * Collects axioms that are either:
+     * - Labelled but not referenced in any formula
+     * - Unlabelled (no standpointAxiom annotation at all)
+     * Both are wrapped as □_*[axiom] — universally valid across all standpoints.
+     */
+    private List<OntologyLoader.AxiomWithLabel> collectUnreferencedAxioms(
+            Map<String, OntologyLoader.AxiomWithLabel> axiomLabelMap,
+            List<OntologyLoader.AxiomWithLabel> expandedAxioms,
+            List<FormulaParser.ParsedFormula> formulas) {
+
+        // Collect all axiom IDs already referenced in expanded formulas
+        Set<String> referencedIds = new HashSet<>();
+        for (FormulaParser.ParsedFormula formula : formulas) {
+            for (FormulaParser.ParsedLiteral lit : formula.literals) {
+                referencedIds.add(lit.ref);
+            }
+        }
+
+        List<OntologyLoader.AxiomWithLabel> result = new ArrayList<>();
+
+        for (OntologyLoader.AxiomWithLabel ax : expandedAxioms) {
+            for (String label : ax.standpointLabels) {
+                String id = extractIdFromLabel(label);
+                if (id != null) referencedIds.add(id);
+            }
+        }
+
+        // 1 — Labelled but not referenced in any formula
+        for (Map.Entry<String, OntologyLoader.AxiomWithLabel> e : axiomLabelMap.entrySet()) {
+            if (!referencedIds.contains(e.getKey())) {
+                OntologyLoader.AxiomWithLabel original = e.getValue();
+                String manchesterContent = extractInnerContent(original.standpointLabels.get(0));
+                if (isEquivalentTo(manchesterContent)) {
+                    for (String gci : splitEquivalentTo(manchesterContent)) {
+                        result.add(new OntologyLoader.AxiomWithLabel(
+                                original.axiom,
+                                Collections.singletonList(wrapAsStar(gci)),
+                                StandpointAxiomType.CONCEPT_INCLUSION));
+                    }
+                } else {
+                    result.add(new OntologyLoader.AxiomWithLabel(
+                            original.axiom,
+                            Collections.singletonList(wrapAsStar(manchesterContent)),
+                            original.axiomType));
+                }
+            }
+        }
+
+        // 2 — Unlabelled axioms from source ontology
+        // Collect all OWLAxiom objects that ARE labelled
+        Set<OWLAxiom> labelledAxioms = new HashSet<>();
+        for (OntologyLoader.AxiomWithLabel ax : axiomLabelMap.values()) {
+            labelledAxioms.add(ax.axiom);
+        }
+
+        // Supported axiom types — same as what loadAxiomLabels handles
+        Set<AxiomType<?>> supported = new HashSet<>(Arrays.asList(
+                AxiomType.SUBCLASS_OF,
+                AxiomType.CLASS_ASSERTION,
+                AxiomType.SUB_OBJECT_PROPERTY,
+                AxiomType.OBJECT_PROPERTY_ASSERTION,
+                AxiomType.TRANSITIVE_OBJECT_PROPERTY,
+                AxiomType.EQUIVALENT_CLASSES
+        ));
+
+        for (OWLAxiom ax : ontology.getAxioms()) {
+            if (!supported.contains(ax.getAxiomType())) continue;
+            if (labelledAxioms.contains(ax)) continue;
+
+            if (ax instanceof OWLEquivalentClassesAxiom) {
+                // Split into two SubClassOf axioms
+                OWLEquivalentClassesAxiom eq = (OWLEquivalentClassesAxiom) ax;
+                List<OWLClassExpression> ops = new ArrayList<>(eq.getClassExpressions());
+                if (ops.size() == 2) {
+                    OWLClassExpression a = ops.get(0);
+                    OWLClassExpression b = ops.get(1);
+
+                    ManchesterOWLSyntaxOWLObjectRendererImpl renderer =
+                            new ManchesterOWLSyntaxOWLObjectRendererImpl();
+                    String manchesterA = renderer.render(a);
+                    String manchesterB = renderer.render(b);
+
+                    // A SubClassOf: B
+                    String gci1 = manchesterA + " SubClassOf: " + manchesterB;
+                    result.add(new OntologyLoader.AxiomWithLabel(
+                            ax,
+                            Collections.singletonList(wrapAsStar(gci1)),
+                            StandpointAxiomType.CONCEPT_INCLUSION));
+                    PipelineLogger.log("  Unlabelled EquivalentTo split □_*: " + gci1);
+
+                    // B SubClassOf: A
+                    String gci2 = manchesterB + " SubClassOf: " + manchesterA;
+                    result.add(new OntologyLoader.AxiomWithLabel(
+                            ax,
+                            Collections.singletonList(wrapAsStar(gci2)),
+                            StandpointAxiomType.CONCEPT_INCLUSION));
+                    PipelineLogger.log("  Unlabelled EquivalentTo split □_*: " + gci2);
+                }
+            } else {
+                String manchesterContent = getManchesterFromOWLAxiom(ax);
+                if (manchesterContent != null) {
+                    String wrappedLabel = wrapAsStar(manchesterContent);
+                    StandpointAxiomType axiomType = getAxiomType(ax);
+                    result.add(new OntologyLoader.AxiomWithLabel(
+                            ax,
+                            Collections.singletonList(wrappedLabel),
+                            axiomType));
+                    PipelineLogger.log("  Unlabelled axiom wrapped as □_*: "
+                            + manchesterContent);
+                }
+            }
+        }
+
+        PipelineLogger.log("Step 2b — wrapped " + result.size()
+                + " unreferenced/unlabelled axioms as □_*");
+        return result;
+    }
+
+    /**
+     * Wraps a Manchester axiom string as □_*[axiom].
+     */
+    private String wrapAsStar(String manchesterContent) {
+        return "<modal op=\"box\" standpoint=\"*\">"
+                + manchesterContent
+                + "</modal>";
+    }
+
+    /**
+     * Extracts Manchester content from a labelled AxiomWithLabel.
+     * Uses the standpointLabel XML string — extracts content inside <axiom> tags.
+     */
+    private String getManchesterContent(OntologyLoader.AxiomWithLabel ax) {
+        if (ax.standpointLabels.isEmpty()) return null;
+        String label = ax.standpointLabels.get(0);
+        try {
+            String wrapped = "<root>" + label.trim() + "</root>";
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(
+                    new InputSource(new StringReader(wrapped)));
+            Node axiomNode = doc.getDocumentElement().getFirstChild();
+            return axiomNode != null ? axiomNode.getTextContent().trim() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Converts an OWLAxiom to its Manchester syntax string.
+     * Uses the helper ontology's Manchester renderer.
+     */
+    private String getManchesterFromOWLAxiom(OWLAxiom ax) {
+        try {
+            ManchesterOWLSyntaxOWLObjectRendererImpl renderer =
+                    new ManchesterOWLSyntaxOWLObjectRendererImpl();
+            String rendered = renderer.render(ax);
+
+            // Ensure colon after SubClassOf, SubPropertyOf —
+            // renderer may omit it but pipeline expects it
+            rendered = rendered.replace("SubClassOf ", "SubClassOf: ");
+            rendered = rendered.replace("SubPropertyOf ", "SubPropertyOf: ");
+            rendered = rendered.replace("Type ", "Type: ");
+
+            return rendered;
+        } catch (Exception e) {
+            PipelineLogger.log("WARNING: could not render axiom to Manchester: " + ax);
+            return null;
+        }
+    }
+
+    /**
+     * Extracts axiom ID from a standpointLabel XML string.
+     */
+    private String extractIdFromLabel(String label) {
+        try {
+            String wrapped = "<root>" + label.trim() + "</root>";
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(
+                    new InputSource(new StringReader(wrapped)));
+            Node axiomNode = doc.getDocumentElement().getFirstChild();
+            if (axiomNode == null) return null;
+            Node idAttr = axiomNode.getAttributes().getNamedItem("id");
+            return idAttr != null ? idAttr.getNodeValue() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Maps OWLAxiom type to StandpointAxiomType.
+     */
+    private StandpointAxiomType getAxiomType(OWLAxiom ax) {
+        if (ax instanceof OWLSubClassOfAxiom)
+            return StandpointAxiomType.CONCEPT_INCLUSION;
+        if (ax instanceof OWLEquivalentClassesAxiom)
+            return StandpointAxiomType.CONCEPT_INCLUSION;
+        if (ax instanceof OWLClassAssertionAxiom)
+            return StandpointAxiomType.CONCEPT_ASSERTION;
+        if (ax instanceof OWLSubObjectPropertyOfAxiom)
+            return StandpointAxiomType.ROLE_INCLUSION;
+        if (ax instanceof OWLObjectPropertyAssertionAxiom)
+            return StandpointAxiomType.ROLE_ASSERTION;
+        if (ax instanceof OWLTransitiveObjectPropertyAxiom)
+            return StandpointAxiomType.ROLE_TRANSITIVITY;
+        return StandpointAxiomType.CONCEPT_INCLUSION;
     }
 }
