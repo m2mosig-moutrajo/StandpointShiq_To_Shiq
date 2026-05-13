@@ -100,11 +100,4 @@ public class PrecisificationSet {
     public int size() {
         return allPrecisifications.size();
     }
-
-    /**
-     * Returns all precisifications in Π_K.
-     */
-    public List<Precisification> getAll() {
-        return Collections.unmodifiableList(allPrecisifications);
-    }
 }

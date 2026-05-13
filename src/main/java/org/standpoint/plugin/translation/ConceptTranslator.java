@@ -6,6 +6,7 @@ import org.standpoint.plugin.model.Precisification;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
+import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -141,7 +142,7 @@ public class ConceptTranslator {
                     trans(pi, m.getFiller()));
         }
 
-        System.out.println("WARNING ConceptTranslator: unhandled type "
+        PipelineLogger.log("WARNING ConceptTranslator: unhandled type "
                 + concept.getClass().getSimpleName()
                 + " — " + concept);
         return concept;
@@ -161,7 +162,7 @@ public class ConceptTranslator {
             OWLObjectProperty inner = (OWLObjectProperty) ((OWLObjectInverseOf) role).getInverse();
             return df.getOWLObjectInverseOf(aux.getCopiedRole(inner, pi));
         }
-        System.out.println("WARNING ConceptTranslator: unhandled role type " + role);
+        PipelineLogger.log("WARNING ConceptTranslator: unhandled role type " + role);
         return role;
     }
 
@@ -180,7 +181,7 @@ public class ConceptTranslator {
         NormalisedAxiom ax = owlMap.get(spKey);
 
         if (ax == null) {
-            System.out.println("WARNING ConceptTranslator: placeholder " + spKey + " not found in owlMap");
+            PipelineLogger.log("WARNING ConceptTranslator: placeholder " + spKey + " not found in owlMap");
             return df.getOWLThing();
         }
 
@@ -191,7 +192,7 @@ public class ConceptTranslator {
                 .collect(Collectors.toList());
 
         if (auxConcepts.isEmpty()) {
-            System.out.println("WARNING ConceptTranslator: empty σ(" + ax.standpoint + ") for " + spKey);
+            PipelineLogger.log("WARNING ConceptTranslator: empty σ(" + ax.standpoint + ") for " + spKey);
             return df.getOWLThing();
         }
 

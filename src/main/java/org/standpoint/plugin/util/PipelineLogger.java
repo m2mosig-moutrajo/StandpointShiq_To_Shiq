@@ -10,10 +10,6 @@ public class PipelineLogger {
         level = l;
     }
 
-    public static Level getLevel() {
-        return level;
-    }
-
     public static void log(String msg) {
         if (level == Level.ON) System.out.println(msg);
     }

@@ -38,11 +38,6 @@ public class AnnotationProcessor {
         this.placeholderCounter = new PlaceholderCounter();
     }
 
-    public AnnotationProcessor(OWLOntology ontology, PipelineLogger.Level logLevel) {
-        this.ontology = ontology;
-        this.placeholderCounter = new PlaceholderCounter();
-    }
-
     public StandpointKnowledgeBase run() throws Exception {
 
         // Step 1 — Load
@@ -873,13 +868,6 @@ public class AnnotationProcessor {
 
         List<OntologyLoader.AxiomWithLabel> result = new ArrayList<>();
 
-        for (OntologyLoader.AxiomWithLabel ax : expandedAxioms) {
-            for (String label : ax.standpointLabels) {
-                String id = extractIdFromLabel(label);
-                if (id != null) referencedIds.add(id);
-            }
-        }
-
         // 1 — Labelled but not referenced in any formula
         for (Map.Entry<String, OntologyLoader.AxiomWithLabel> e : axiomLabelMap.entrySet()) {
             if (!referencedIds.contains(e.getKey())) {
@@ -978,26 +966,6 @@ public class AnnotationProcessor {
         return "<modal op=\"box\" standpoint=\"*\">"
                 + manchesterContent
                 + "</modal>";
-    }
-
-    /**
-     * Extracts Manchester content from a labelled AxiomWithLabel.
-     * Uses the standpointLabel XML string — extracts content inside <axiom> tags.
-     */
-    private String getManchesterContent(OntologyLoader.AxiomWithLabel ax) {
-        if (ax.standpointLabels.isEmpty()) return null;
-        String label = ax.standpointLabels.get(0);
-        try {
-            String wrapped = "<root>" + label.trim() + "</root>";
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(
-                    new InputSource(new StringReader(wrapped)));
-            Node axiomNode = doc.getDocumentElement().getFirstChild();
-            return axiomNode != null ? axiomNode.getTextContent().trim() : null;
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     /**

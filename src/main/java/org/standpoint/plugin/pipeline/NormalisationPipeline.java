@@ -22,42 +22,40 @@ import org.standpoint.plugin.util.PipelineLogger;
 public class NormalisationPipeline {
 
     private final OWLOntology     ontology;
-    private final PipelineLogger  logger;
 
     public NormalisationPipeline(OWLOntology ontology) {
         this.ontology = ontology;
-        this.logger   = new PipelineLogger();
     }
 
     public StandpointKnowledgeBase run() throws Exception {
 
         // Step 1 — Parse annotations and normalise
-        logger.log("=== STEP 1 — Normalisation ===");
+        PipelineLogger.log("=== STEP 1 — Normalisation ===");
         AnnotationProcessor standpointPipeline =
-                new AnnotationProcessor(ontology, logger.getLevel());
+                new AnnotationProcessor(ontology);
         StandpointKnowledgeBase kb = standpointPipeline.run();
 
         if (kb == null) {
-            logger.log("Pipeline returned null — no formulas found.");
+            PipelineLogger.log("Pipeline returned null — no formulas found.");
             return null;
         }
 
-        logger.log("Placeholder map size: " + kb.manchesterMap.size());
+        PipelineLogger.log("Placeholder map size: " + kb.manchesterMap.size());
         kb.manchesterMap.forEach((key, mp) ->
-                logger.log("  " + key + " → " + mp.manchester
+                PipelineLogger.log("  " + key + " → " + mp.manchester
                         + (mp.isRoot ? " [ROOT]" : "")));
 
         // Step 2 — Convert Manchester strings to OWL objects
-        logger.log("\n=== STEP 2 — Manchester → OWL conversion ===");
+        PipelineLogger.log("\n=== STEP 2 — Manchester → OWL conversion ===");
         ManchesterToOWLConverter converter = new ManchesterToOWLConverter(kb);
         converter.convert();
 
-        logger.log("owlMap size: " + kb.owlMap.size());
+        PipelineLogger.log("owlMap size: " + kb.owlMap.size());
         kb.owlMap.forEach((key, ax) -> {
             String repr = ax.isRoot
                     ? ax.owlAxiom.toString()
                     : ax.owlTree.toString();
-            logger.log("  Converted: " + key + " → "
+            PipelineLogger.log("  Converted: " + key + " → "
                     + (ax.operator == org.standpoint.plugin.model.Operator.BOX ? "□" : "◇")
                     + "_" + ax.standpoint + "[" + repr + "]"
                     + (ax.isRoot ? " [ROOT]" : "")
@@ -65,7 +63,7 @@ public class NormalisationPipeline {
         });
 
         // Step 2b — Deduplicate placeholder map
-        logger.log("\n=== STEP 2b — Deduplication ===");
+        PipelineLogger.log("\n=== STEP 2b — Deduplication ===");
         OWLDataFactory df = kb.sourceOntology
                 .getOWLOntologyManager().getOWLDataFactory();
         PlaceholderDeduplicator deduplicator =
@@ -75,15 +73,15 @@ public class NormalisationPipeline {
         boolean hasDuplicates = kb.canonicalKey.entrySet().stream()
                 .anyMatch(e -> !e.getKey().equals(e.getValue()));
         if (!hasDuplicates) {
-            logger.log("  (no duplicates found)");
+            PipelineLogger.log("  (no duplicates found)");
         } else {
             kb.canonicalKey.forEach((k, v) -> {
                 if (!k.equals(v))
-                    logger.log("  " + k + " → " + v + "  [duplicate]");
+                    PipelineLogger.log("  " + k + " → " + v + "  [duplicate]");
             });
         }
 
-        logger.log("\n✅ Normalisation pipeline complete.");
+        PipelineLogger.log("\n✅ Normalisation pipeline complete.");
         return kb;
     }
 }

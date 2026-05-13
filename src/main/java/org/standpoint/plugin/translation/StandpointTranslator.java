@@ -6,6 +6,7 @@ import org.standpoint.plugin.model.Precisification;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
+import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
 
@@ -55,7 +56,7 @@ public class StandpointTranslator {
 
         // TYPE (1) — AUX_D_n_π ⊑ trans(π, C)
         // for every non-root entry with owlTree and every π ∈ Π_K
-        System.out.println("\n=== TYPE (1) — Auxiliary definitions ===");
+        PipelineLogger.log("\n=== TYPE (1) — Auxiliary definitions ===");
         for (Map.Entry<String, NormalisedAxiom> e : owlMap.entrySet()) {
             String key         = e.getKey();
             NormalisedAxiom ax = e.getValue();
@@ -67,7 +68,7 @@ public class StandpointTranslator {
                 OWLClassExpression rhs = conceptTranslator.trans(pi, ax.owlTree);
                 OWLAxiom axiom = df.getOWLSubClassOfAxiom(lhs, rhs);
                 manager.addAxiom(output, axiom);
-                System.out.println("  " + lhs.getIRI().getShortForm() + " ⊑ " + rhs);
+                PipelineLogger.log("  " + lhs.getIRI().getShortForm() + " ⊑ " + rhs);
             }
         }
 
@@ -94,7 +95,7 @@ public class StandpointTranslator {
                 translateRoleAssertion(e.getKey(), ax, (OWLObjectPropertyAssertionAxiom) ax.owlAxiom, piSK, output);
 
             } else {
-                System.out.println("WARNING StandpointTranslator: unhandled axiom type for " + e.getKey() + ": " + ax.owlAxiom.getClass().getSimpleName());
+                PipelineLogger.log("WARNING StandpointTranslator: unhandled axiom type for " + e.getKey() + ": " + ax.owlAxiom.getClass().getSimpleName());
             }
         }
 
@@ -106,13 +107,13 @@ public class StandpointTranslator {
                               OWLSubClassOfAxiom gci,
                               Set<Precisification> piSK,
                               OWLOntology output) {
-        System.out.println("\n=== TYPE (2) — GCI " + key + " □_" + ax.standpoint + " ===");
+        PipelineLogger.log("\n=== TYPE (2) — GCI " + key + " □_" + ax.standpoint + " ===");
         OWLClassExpression rhs = gci.getSuperClass();
         for (Precisification pi : piSK) {
             OWLClassExpression translated = conceptTranslator.trans(pi, rhs);
             OWLAxiom axiom = df.getOWLSubClassOfAxiom(df.getOWLThing(), translated);
             manager.addAxiom(output, axiom);
-            System.out.println("  [" + pi.id + "] ⊤ ⊑ " + translated);
+            PipelineLogger.log("  [" + pi.id + "] ⊤ ⊑ " + translated);
         }
     }
 
@@ -121,14 +122,14 @@ public class StandpointTranslator {
                                            OWLClassAssertionAxiom assertion,
                                            Set<Precisification> piSK,
                                            OWLOntology output) {
-        System.out.println("\n=== TYPE (5) — Concept assertion " + key + " □_" + ax.standpoint + " ===");
+        PipelineLogger.log("\n=== TYPE (5) — Concept assertion " + key + " □_" + ax.standpoint + " ===");
         OWLClassExpression concept    = assertion.getClassExpression();
         OWLNamedIndividual individual = (OWLNamedIndividual) assertion.getIndividual();
         for (Precisification pi : piSK) {
             OWLClassExpression translated = conceptTranslator.trans(pi, concept);
             OWLAxiom axiom = df.getOWLClassAssertionAxiom(translated, individual);
             manager.addAxiom(output, axiom);
-            System.out.println("  [" + pi.id + "] " + translated + "(" + individual.getIRI().getShortForm() + ")");
+            PipelineLogger.log("  [" + pi.id + "] " + translated + "(" + individual.getIRI().getShortForm() + ")");
         }
     }
 
@@ -137,7 +138,7 @@ public class StandpointTranslator {
                                         OWLSubObjectPropertyOfAxiom ri,
                                         Set<Precisification> piSK,
                                         OWLOntology output) {
-        System.out.println("\n=== TYPE (3) — Role inclusion " + key + " □_" + ax.standpoint + " ===");
+        PipelineLogger.log("\n=== TYPE (3) — Role inclusion " + key + " □_" + ax.standpoint + " ===");
         OWLObjectProperty sub = (OWLObjectProperty) ri.getSubProperty();
         OWLObjectProperty sup = (OWLObjectProperty) ri.getSuperProperty();
         for (Precisification pi : piSK) {
@@ -145,7 +146,7 @@ public class StandpointTranslator {
             OWLObjectProperty supPi = aux.getCopiedRole(sup, pi);
             OWLAxiom axiom = df.getOWLSubObjectPropertyOfAxiom(subPi, supPi);
             manager.addAxiom(output, axiom);
-            System.out.println("  [" + pi.id + "] " + subPi.getIRI().getShortForm() + " ⊑ " + supPi.getIRI().getShortForm());
+            PipelineLogger.log("  [" + pi.id + "] " + subPi.getIRI().getShortForm() + " ⊑ " + supPi.getIRI().getShortForm());
         }
     }
 
@@ -154,13 +155,13 @@ public class StandpointTranslator {
                                        OWLTransitiveObjectPropertyAxiom tra,
                                        Set<Precisification> piSK,
                                        OWLOntology output) {
-        System.out.println("\n=== TYPE (4) — Transitivity " + key + " □_" + ax.standpoint + " ===");
+        PipelineLogger.log("\n=== TYPE (4) — Transitivity " + key + " □_" + ax.standpoint + " ===");
         OWLObjectProperty role = (OWLObjectProperty) tra.getProperty();
         for (Precisification pi : piSK) {
             OWLObjectProperty rolePi = aux.getCopiedRole(role, pi);
             OWLAxiom axiom = df.getOWLTransitiveObjectPropertyAxiom(rolePi);
             manager.addAxiom(output, axiom);
-            System.out.println("  [" + pi.id + "] Tra(" + rolePi.getIRI().getShortForm() + ")");
+            PipelineLogger.log("  [" + pi.id + "] Tra(" + rolePi.getIRI().getShortForm() + ")");
         }
     }
 
@@ -169,7 +170,7 @@ public class StandpointTranslator {
                                         OWLObjectPropertyAssertionAxiom ra,
                                         Set<Precisification> piSK,
                                         OWLOntology output) {
-        System.out.println("\n=== TYPE (6) — Role assertion " + key + " □_" + ax.standpoint + " ===");
+        PipelineLogger.log("\n=== TYPE (6) — Role assertion " + key + " □_" + ax.standpoint + " ===");
         OWLObjectProperty role = (OWLObjectProperty) ra.getProperty();
         OWLNamedIndividual subject = (OWLNamedIndividual) ra.getSubject();
         OWLNamedIndividual object = (OWLNamedIndividual) ra.getObject();
@@ -177,7 +178,7 @@ public class StandpointTranslator {
             OWLObjectProperty rolePi = aux.getCopiedRole(role, pi);
             OWLAxiom axiom = df.getOWLObjectPropertyAssertionAxiom(rolePi, subject, object);
             manager.addAxiom(output, axiom);
-            System.out.println("  [" + pi.id + "] " + rolePi.getIRI().getShortForm() + "(" + subject.getIRI().getShortForm() + ", " + object.getIRI().getShortForm() + ")");
+            PipelineLogger.log("  [" + pi.id + "] " + rolePi.getIRI().getShortForm() + "(" + subject.getIRI().getShortForm() + ", " + object.getIRI().getShortForm() + ")");
         }
     }
 }
