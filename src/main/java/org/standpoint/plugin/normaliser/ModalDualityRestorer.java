@@ -1,4 +1,4 @@
-package org.standpoint.plugin.normalisation;
+package org.standpoint.plugin.normaliser;
 
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.ModalPlaceholder;

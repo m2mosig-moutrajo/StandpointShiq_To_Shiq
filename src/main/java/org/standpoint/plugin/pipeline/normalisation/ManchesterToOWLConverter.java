@@ -4,7 +4,7 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.model.StandpointAxiomType;
-import org.standpoint.plugin.normalisation.ManchesterNormaliser;
+import org.standpoint.plugin.normaliser.ManchesterNormaliser;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.util.PipelineLogger;
