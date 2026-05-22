@@ -2,6 +2,7 @@ package org.standpoint.plugin.normaliser;
 
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.ModalPlaceholder;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.util.PlaceholderCounter;
 
 import java.util.Map;
@@ -34,12 +35,12 @@ public class ModalDualityRestorer {
 
         while (i < manchesterExpr.length()) {
             // Look for "not (SP_...)" pattern
-            if (manchesterExpr.startsWith("not (" + placeholderCounter.PREFIX, i)) {
+            if (manchesterExpr.startsWith("not (" + PlaceholderType.MODAL_PLACEHOLDER.prefix, i)) {
                 int parenOpen  = manchesterExpr.indexOf('(', i + 4);
                 int parenClose = findMatchingParen(manchesterExpr, parenOpen);
                 String innerToken = manchesterExpr.substring(parenOpen + 1, parenClose).trim();
 
-                if (placeholderCounter.isPlaceholder(innerToken) && placeholderMap.containsKey(innerToken)) {
+                if (placeholderCounter.hasPrefix(innerToken, PlaceholderType.MODAL_PLACEHOLDER) && placeholderMap.containsKey(innerToken)) {
                     // Apply duality: flip operator of target entry, push not inside
                     ModalPlaceholder targetEntry = placeholderMap.get(innerToken);
                     applyModalDuality(targetEntry);

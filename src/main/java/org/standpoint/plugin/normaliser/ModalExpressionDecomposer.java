@@ -2,6 +2,7 @@ package org.standpoint.plugin.normaliser;
 
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.ModalPlaceholder;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.util.PlaceholderCounter;
 import org.w3c.dom.*;
 import javax.xml.parsers.*;
@@ -129,7 +130,7 @@ public class ModalExpressionDecomposer {
             // axiomType will be set by pipeline from AxiomWithLabel
         }
 
-        String placeholderKey = placeholderCounter.generate();
+        String placeholderKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
         placeholderMap.put(placeholderKey, entry);
         return placeholderKey;
     }

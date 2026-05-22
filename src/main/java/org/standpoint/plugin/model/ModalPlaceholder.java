@@ -17,8 +17,7 @@ public class ModalPlaceholder {
 
     @Override
     public String toString() {
-        String opName = operator == Operator.BOX ? "box" : "diamond";
-        return "<modal op=\"" + opName + "\" standpoint=\"" + standpoint + "\">"
+        return "<modal op=\"" + operator.toString().toLowerCase() + "\" standpoint=\"" + standpoint + "\">"
                 + manchester + "</modal>"
                 + (isRoot ? " [ROOT]" : "");
     }

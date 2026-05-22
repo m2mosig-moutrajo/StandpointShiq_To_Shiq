@@ -1,5 +1,7 @@
 package org.standpoint.plugin.loader;
 
+import org.standpoint.plugin.model.ParsedFormula;
+import org.standpoint.plugin.model.ParsedLiteral;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 import javax.xml.parsers.*;
@@ -7,32 +9,8 @@ import java.io.StringReader;
 import java.util.*;
 
 public class FormulaParser {
-
-    public static class ParsedFormula {
-        public final String operator;        // "box" or "diamond"
-        public final String standpoint;      // standpoint name
-        public final List<ParsedLiteral> literals; // expanded literals
-
-        public ParsedFormula(String operator, String standpoint,
-                             List<ParsedLiteral> literals) {
-            this.operator   = operator;
-            this.standpoint = standpoint;
-            this.literals   = literals;
-        }
-    }
-
-    public static class ParsedLiteral {
-        public final String ref;        // F1, F2, F3
-        public final boolean negated;   // negated="true"
-
-        public ParsedLiteral(String ref, boolean negated) {
-            this.ref     = ref;
-            this.negated = negated;
-        }
-    }
-
     // Parses <formula op="box" standpoint="s1">...</formula>
-    public static ParsedFormula parse(String xml) {
+    public ParsedFormula parse(String xml) {
         try {
             String wrapped = "<root>" + xml.trim() + "</root>";
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -76,7 +54,7 @@ public class FormulaParser {
         }
     }
 
-    private static ParsedLiteral parseLiteral(Node node) {
+    private ParsedLiteral parseLiteral(Node node) {
         String ref = node.getAttributes().getNamedItem("ref").getNodeValue();
         Node negatedAttr = node.getAttributes().getNamedItem("negated");
         boolean negated = negatedAttr != null && "true".equals(negatedAttr.getNodeValue());

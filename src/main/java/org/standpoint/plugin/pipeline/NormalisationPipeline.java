@@ -4,7 +4,6 @@ import org.semanticweb.owlapi.model.OWLDataFactory;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.normalisation.AnnotationProcessor;
-import org.standpoint.plugin.pipeline.normalisation.ManchesterToOWLConverter;
 import org.standpoint.plugin.pipeline.normalisation.PlaceholderDeduplicator;
 import org.standpoint.plugin.util.PipelineLogger;
 
@@ -12,16 +11,18 @@ import org.standpoint.plugin.util.PipelineLogger;
  * Pipeline 1 — Normalisation.
  *
  * Steps covered:
- *   1. AnnotationProcessor.run()         — parse annotations, normalise, build manchesterMap
- *   2. ManchesterToOWLConverter.convert()— convert to OWL-native owlMap
- *   2b. PlaceholderDeduplicator          — deduplicate, build canonicalKey
+ *   1. AnnotationProcessor.run()  — parse annotations, normalise, build manchesterMap + owlMap
+ *   2. PlaceholderDeduplicator    — deduplicate, build canonicalKey
+ *
+ * owlMap is now populated directly by AnnotationProcessor with raw OWL objects
+ * (pre-normalisation). ManchesterToOWLConverter is no longer a pipeline stage.
  *
  * Input:  OWLOntology (source)
  * Output: StandpointKnowledgeBase with owlMap and canonicalKey populated
  */
 public class NormalisationPipeline {
 
-    private final OWLOntology     ontology;
+    private final OWLOntology ontology;
 
     public NormalisationPipeline(OWLOntology ontology) {
         this.ontology = ontology;
@@ -31,9 +32,8 @@ public class NormalisationPipeline {
 
         // Step 1 — Parse annotations and normalise
         PipelineLogger.log("=== STEP 1 — Normalisation ===");
-        AnnotationProcessor standpointPipeline =
-                new AnnotationProcessor(ontology);
-        StandpointKnowledgeBase kb = standpointPipeline.run();
+        AnnotationProcessor annotationProcessor = new AnnotationProcessor(ontology);
+        StandpointKnowledgeBase kb = annotationProcessor.run();
 
         if (kb == null) {
             PipelineLogger.log("Pipeline returned null — no formulas found.");
@@ -45,17 +45,14 @@ public class NormalisationPipeline {
                 PipelineLogger.log("  " + key + " → " + mp.manchester
                         + (mp.isRoot ? " [ROOT]" : "")));
 
-        // Step 2 — Convert Manchester strings to OWL objects
-        PipelineLogger.log("\n=== STEP 2 — Manchester → OWL conversion ===");
-        ManchesterToOWLConverter converter = new ManchesterToOWLConverter(kb);
-        converter.convert();
-
+        // Step 2 — owlMap now populated directly by AnnotationProcessor
+        PipelineLogger.log("\n=== STEP 2 — owlMap populated by AnnotationProcessor ===");
         PipelineLogger.log("owlMap size: " + kb.owlMap.size());
         kb.owlMap.forEach((key, ax) -> {
-            String repr = ax.isRoot
-                    ? ax.owlAxiom.toString()
-                    : ax.owlTree.toString();
-            PipelineLogger.log("  Converted: " + key + " → "
+            String repr = ax.owlAxiom != null ? ax.owlAxiom.toString()
+                    : ax.owlTree != null ? ax.owlTree.toString()
+                    : ax.manchester;
+            PipelineLogger.log("  " + key + " → "
                     + (ax.operator == org.standpoint.plugin.model.Operator.BOX ? "□" : "◇")
                     + "_" + ax.standpoint + "[" + repr + "]"
                     + (ax.isRoot ? " [ROOT]" : "")
