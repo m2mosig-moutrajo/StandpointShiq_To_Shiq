@@ -2,6 +2,7 @@ package org.standpoint.plugin.pipeline.normalisation;
 
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.EntrySignature;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.translation.DiamondExpression;
 
@@ -153,7 +154,7 @@ public class PlaceholderDeduplicator {
     private OWLClassExpression handleClass(OWLClass cls,
                                            Map<String, String> canonicalKey) {
         // Real concept — leave it alone
-        if (!ManchesterToOWLConverter.isPlaceholder(cls)) {
+        if (!PlaceholderType.isModalPlaceholder(cls)) {
             return cls;
         }
 
@@ -166,8 +167,7 @@ public class PlaceholderDeduplicator {
 
         // Duplicate — build new IRI pointing to canonical
         // e.g. SP_3 → SP_1  becomes  http://standpoint.org/placeholder#SP_1
-        return df.getOWLClass(IRI.create(
-                ManchesterToOWLConverter.PLUGIN_NS + canon));
+        return df.getOWLClass(IRI.create(PlaceholderType.PLUGIN_NS + canon));
     }
 
     /**

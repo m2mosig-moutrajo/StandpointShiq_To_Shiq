@@ -40,45 +40,45 @@ public class NormalisationPipeline {
             return null;
         }
 
-        PipelineLogger.log("Placeholder map size: " + kb.manchesterMap.size());
-        kb.manchesterMap.forEach((key, mp) ->
-                PipelineLogger.log("  " + key + " → " + mp.manchester
-                        + (mp.isRoot ? " [ROOT]" : "")));
-
-        // Step 2 — owlMap now populated directly by AnnotationProcessor
-        PipelineLogger.log("\n=== STEP 2 — owlMap populated by AnnotationProcessor ===");
-        PipelineLogger.log("owlMap size: " + kb.owlMap.size());
-        kb.owlMap.forEach((key, ax) -> {
-            String repr = ax.owlAxiom != null ? ax.owlAxiom.toString()
-                    : ax.owlTree != null ? ax.owlTree.toString()
-                    : ax.manchester;
-            PipelineLogger.log("  " + key + " → "
-                    + (ax.operator == org.standpoint.plugin.model.Operator.BOX ? "□" : "◇")
-                    + "_" + ax.standpoint + "[" + repr + "]"
-                    + (ax.isRoot ? " [ROOT]" : "")
-                    + (!ax.childKeys.isEmpty() ? " children=" + ax.childKeys : ""));
-        });
-
-        // Step 2b — Deduplicate placeholder map
-        PipelineLogger.log("\n=== STEP 2b — Deduplication ===");
-        OWLDataFactory df = kb.sourceOntology
-                .getOWLOntologyManager().getOWLDataFactory();
-        PlaceholderDeduplicator deduplicator =
-                new PlaceholderDeduplicator(kb.owlMap, df);
-        kb.canonicalKey = deduplicator.deduplicate();
-
-        boolean hasDuplicates = kb.canonicalKey.entrySet().stream()
-                .anyMatch(e -> !e.getKey().equals(e.getValue()));
-        if (!hasDuplicates) {
-            PipelineLogger.log("  (no duplicates found)");
-        } else {
-            kb.canonicalKey.forEach((k, v) -> {
-                if (!k.equals(v))
-                    PipelineLogger.log("  " + k + " → " + v + "  [duplicate]");
-            });
-        }
-
-        PipelineLogger.log("\n✅ Normalisation pipeline complete.");
+//        PipelineLogger.log("Placeholder map size: " + kb.manchesterMap.size());
+//        kb.manchesterMap.forEach((key, mp) ->
+//                PipelineLogger.log("  " + key + " → " + mp.manchester
+//                        + (mp.isRoot ? " [ROOT]" : "")));
+//
+//        // Step 2 — owlMap now populated directly by AnnotationProcessor
+//        PipelineLogger.log("\n=== STEP 2 — owlMap populated by AnnotationProcessor ===");
+//        PipelineLogger.log("owlMap size: " + kb.owlMap.size());
+//        kb.owlMap.forEach((key, ax) -> {
+//            String repr = ax.owlAxiom != null ? ax.owlAxiom.toString()
+//                    : ax.owlTree != null ? ax.owlTree.toString()
+//                    : ax.manchester;
+//            PipelineLogger.log("  " + key + " → "
+//                    + (ax.operator == org.standpoint.plugin.model.Operator.BOX ? "□" : "◇")
+//                    + "_" + ax.standpoint + "[" + repr + "]"
+//                    + (ax.isRoot ? " [ROOT]" : "")
+//                    + (!ax.childKeys.isEmpty() ? " children=" + ax.childKeys : ""));
+//        });
+//
+//        // Step 2b — Deduplicate placeholder map
+//        PipelineLogger.log("\n=== STEP 2b — Deduplication ===");
+//        OWLDataFactory df = kb.sourceOntology
+//                .getOWLOntologyManager().getOWLDataFactory();
+//        PlaceholderDeduplicator deduplicator =
+//                new PlaceholderDeduplicator(kb.owlMap, df);
+//        kb.canonicalKey = deduplicator.deduplicate();
+//
+//        boolean hasDuplicates = kb.canonicalKey.entrySet().stream()
+//                .anyMatch(e -> !e.getKey().equals(e.getValue()));
+//        if (!hasDuplicates) {
+//            PipelineLogger.log("  (no duplicates found)");
+//        } else {
+//            kb.canonicalKey.forEach((k, v) -> {
+//                if (!k.equals(v))
+//                    PipelineLogger.log("  " + k + " → " + v + "  [duplicate]");
+//            });
+//        }
+//
+//        PipelineLogger.log("\n✅ Normalisation pipeline complete.");
         return kb;
     }
 }

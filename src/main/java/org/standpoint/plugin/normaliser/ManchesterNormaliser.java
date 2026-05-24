@@ -4,8 +4,13 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.util.OntologyAxiomPair;
 import org.semanticweb.owlapi.util.mansyntax.ManchesterOWLSyntaxParser;
+import org.standpoint.plugin.model.StandpointAxiomType;
+
 import java.util.Collections;
 import java.util.Set;
+
+import static org.standpoint.plugin.model.StandpointAxiomType.CONCEPT_ASSERTION;
+import static org.standpoint.plugin.model.StandpointAxiomType.ROLE_ASSERTION;
 
 public class ManchesterNormaliser {
 
@@ -20,9 +25,9 @@ public class ManchesterNormaliser {
     }
 
     public OWLClassExpression parseManchesterExpression(String manchesterExpr) {
-        manchesterExpr = manchesterExpr
-                .replace("owl:Nothing", "Nothing")
-                .replace("owl:Thing", "Thing");
+//        manchesterExpr = manchesterExpr
+//                .replace("owl:Nothing", "Nothing")
+//                .replace("owl:Thing", "Thing");
 
         ManchesterOWLSyntaxParser parser = OWLManager.createManchesterParser();
         parser.setStringToParse(manchesterExpr);
@@ -46,10 +51,10 @@ public class ManchesterNormaliser {
     //   "john hasAnimal fido"                 → OWLObjectPropertyAssertionAxiom
     //   "Transitive hasAncestor"              → OWLTransitiveObjectPropertyAxiom
     // Returns null if parsing fails — caller should log a warning.
-    public OWLAxiom parseAxiom(String manchesterAxiomExpr) {
-        manchesterAxiomExpr = manchesterAxiomExpr.trim()
-                .replace("owl:Nothing", "Nothing")
-                .replace("owl:Thing", "Thing");
+    public OWLAxiom parseAxiom(String manchesterAxiomExpr, StandpointAxiomType standpointAxiomType) {
+        manchesterAxiomExpr = manchesterAxiomExpr.trim();
+           //     .replace("owl:Nothing", "Nothing")
+           //     .replace("owl:Thing", "Thing");
         try {
             ManchesterOWLSyntaxParser parser = OWLManager.createManchesterParser();
             parser.setStringToParse(manchesterAxiomExpr);
@@ -87,14 +92,18 @@ public class ManchesterNormaliser {
             //   Set<OWLAxiom> or List<OWLAxiom>
             // OR explicitly document that frames are truncated.
             // ------------------------------------------------------------
-            if (manchesterAxiomExpr.startsWith("Individual:")) {
+            if (standpointAxiomType == ROLE_ASSERTION) {
                 // Role assertion — requires frame parsing
                 // parseFrames() returns Set<OntologyAxiomPair> in OWL API 4
                 Set<OntologyAxiomPair> pairs = parser.parseFrames();
-                if (pairs != null && !pairs.isEmpty()) {
-                    return pairs.iterator().next().getAxiom();
+                for (OntologyAxiomPair p : pairs) {
+                    OWLAxiom ax = p.getAxiom();
+
+                    if (!(ax instanceof OWLDeclarationAxiom)) {
+                        return ax;
+                    }
                 }
-                return null;
+                return pairs.iterator().next().getAxiom();
             }
             return parser.parseAxiom();
         } catch (Exception e) {

@@ -15,8 +15,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test77.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test77Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test44.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test44Translated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
@@ -31,39 +31,39 @@ public class Main {
             return;
         }
 
-        // ── Print owlMap and STOP ───────────────────────────
-        System.out.println("\n=== owlMap after normalisation ===");
-        System.out.println("owlMap size: " + kb.owlMap.size());
-
-        ManchesterOWLSyntaxOWLObjectRendererImpl renderer =
-                new ManchesterOWLSyntaxOWLObjectRendererImpl();
-
-        kb.owlMap.forEach((key, ax) -> {
-            String op = ax.operator == Operator.BOX ? "□" : "◇";
-
-            String manchester;
-            String owlRaw;
-            String owlType;
-
-            if (ax.isRoot) {
-                manchester = renderer.render(ax.owlAxiom);
-                owlRaw     = ax.owlAxiom.toString();
-                owlType    = ax.owlAxiom.getAxiomType().getName();
-            } else {
-                manchester = renderer.render(ax.owlTree);
-                owlRaw     = ax.owlTree.toString();
-                owlType    = ax.owlTree.getClass().getSimpleName();
-            }
-
-            System.out.println("  " + key + " → " + op + "_" + ax.standpoint
-                    + (ax.isRoot ? " [ROOT]" : ""));
-            System.out.println("    Manchester : " + manchester);
-            System.out.println("    OWL type   : " + owlType);
-            System.out.println("    OWL raw    : " + owlRaw);
-            System.out.println();
-        });
-
-        System.out.println("\n✅ Step 2 complete — stopping here.");
+//        // ── Print owlMap and STOP ───────────────────────────
+//        System.out.println("\n=== owlMap after normalisation ===");
+//        System.out.println("owlMap size: " + kb.owlMap.size());
+//
+//        ManchesterOWLSyntaxOWLObjectRendererImpl renderer =
+//                new ManchesterOWLSyntaxOWLObjectRendererImpl();
+//
+//        kb.owlMap.forEach((key, ax) -> {
+//            String op = ax.operator == Operator.BOX ? "□" : "◇";
+//
+//            String manchester;
+//            String owlRaw;
+//            String owlType;
+//
+//            if (ax.isRoot) {
+//                manchester = renderer.render(ax.owlAxiom);
+//                owlRaw     = ax.owlAxiom.toString();
+//                owlType    = ax.owlAxiom.getAxiomType().getName();
+//            } else {
+//                manchester = renderer.render(ax.owlTree);
+//                owlRaw     = ax.owlTree.toString();
+//                owlType    = ax.owlTree.getClass().getSimpleName();
+//            }
+//
+//            System.out.println("  " + key + " → " + op + "_" + ax.standpoint
+//                    + (ax.isRoot ? " [ROOT]" : ""));
+//            System.out.println("    Manchester : " + manchester);
+//            System.out.println("    OWL type   : " + owlType);
+//            System.out.println("    OWL raw    : " + owlRaw);
+//            System.out.println();
+//        });
+//
+//        System.out.println("\n✅ Step 2 complete — stopping here.");
         // Pipelines 2 and 3 NOT called
     }
 }

@@ -1,8 +1,8 @@
 package org.standpoint.plugin.translation;
 
 import org.semanticweb.owlapi.model.*;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.model.Precisification;
-import org.standpoint.plugin.pipeline.normalisation.ManchesterToOWLConverter;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 
 import java.util.*;
@@ -89,7 +89,7 @@ public class AuxiliaryNameFactory {
      * Returns true if this OWLClass is an SP_n placeholder.
      */
     public static boolean isPlaceholder(OWLClass cls) {
-        return ManchesterToOWLConverter.isPlaceholder(cls);
+        return PlaceholderType.isModalPlaceholder(cls);
     }
 
     /**

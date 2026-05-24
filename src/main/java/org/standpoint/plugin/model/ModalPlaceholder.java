@@ -6,7 +6,7 @@ public class ModalPlaceholder {
     public String standpoint;
     public String manchester;
     public boolean isRoot         = false;
-    public boolean isNegatedAxiom = false;
+    public boolean isNegatedInner = false;
     public StandpointAxiomType standpointAxiomType = StandpointAxiomType.NONE;
 
     public ModalPlaceholder(Operator operator, String standpoint, String manchesterExpression) {
@@ -17,8 +17,10 @@ public class ModalPlaceholder {
 
     @Override
     public String toString() {
-        return "<modal op=\"" + operator.toString().toLowerCase() + "\" standpoint=\"" + standpoint + "\">"
-                + manchester + "</modal>"
+        return "<modal op=\"" + (operator == Operator.BOX ? "box" : "diamond")
+                + "\" standpoint=\"" + standpoint + "\""
+                + (isNegatedInner ? "\" negatedInner=\"true" : "")
+                + ">" + manchester + "</modal>"
                 + (isRoot ? " [ROOT]" : "");
     }
 }
