@@ -26,4 +26,8 @@ public enum PlaceholderType {
                 && cls.getIRI().getShortForm()
                 .startsWith(MODAL_PLACEHOLDER.prefix);
     }
+
+    public static String keyOf(OWLClass cls) {
+        return cls.getIRI().getShortForm();
+    }
 }

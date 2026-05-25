@@ -9,8 +9,7 @@ import org.standpoint.plugin.model.StandpointAxiomType;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.standpoint.plugin.model.StandpointAxiomType.CONCEPT_ASSERTION;
-import static org.standpoint.plugin.model.StandpointAxiomType.ROLE_ASSERTION;
+import static org.standpoint.plugin.model.StandpointAxiomType.*;
 
 public class ManchesterNormaliser {
 
@@ -53,8 +52,8 @@ public class ManchesterNormaliser {
     // Returns null if parsing fails — caller should log a warning.
     public OWLAxiom parseAxiom(String manchesterAxiomExpr, StandpointAxiomType standpointAxiomType) {
         manchesterAxiomExpr = manchesterAxiomExpr.trim();
-           //     .replace("owl:Nothing", "Nothing")
-           //     .replace("owl:Thing", "Thing");
+        //     .replace("owl:Nothing", "Nothing")
+        //     .replace("owl:Thing", "Thing");
         try {
             ManchesterOWLSyntaxParser parser = OWLManager.createManchesterParser();
             parser.setStringToParse(manchesterAxiomExpr);
@@ -92,7 +91,15 @@ public class ManchesterNormaliser {
             //   Set<OWLAxiom> or List<OWLAxiom>
             // OR explicitly document that frames are truncated.
             // ------------------------------------------------------------
-            if (standpointAxiomType == ROLE_ASSERTION) {
+            if (standpointAxiomType == ROLE_ASSERTION || standpointAxiomType == CONCEPT_DISJOINT_UNION || standpointAxiomType == CONCEPT_DISJOINT) {
+                if (standpointAxiomType == CONCEPT_DISJOINT) {
+                    try {
+                        return parser.parseAxiom();
+                    } catch (Exception ignored) {
+                        manchesterAxiomExpr = "Class: owl:Thing " + manchesterAxiomExpr;
+                        parser.setStringToParse(manchesterAxiomExpr);
+                    }
+                }
                 // Role assertion — requires frame parsing
                 // parseFrames() returns Set<OntologyAxiomPair> in OWL API 4
                 Set<OntologyAxiomPair> pairs = parser.parseFrames();
@@ -110,6 +117,7 @@ public class ManchesterNormaliser {
             return null;
         }
     }
+
     // Builds the entity checker using the helper ontology for name resolution
     private org.semanticweb.owlapi.expression.OWLEntityChecker buildEntityChecker() {
         return new org.semanticweb.owlapi.expression.ShortFormEntityChecker(

@@ -15,8 +15,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test44.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test44Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test7.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test7Translated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 

@@ -19,6 +19,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.standpoint.plugin.model.StandpointAxiomType.CONCEPT_ASSERTION;
 
@@ -66,6 +67,24 @@ public class AnnotationProcessor {
 
         injectUnlabelledAxioms(owlMap, axiomLabelMap);
 
+        PipelineLogger.log("\n=== owlMap after injection before expand to subclassof===");
+        PipelineLogger.log("owlMap size: " + owlMap.size());
+        owlMap.forEach((key, na) ->
+                PipelineLogger.log("  " + key + " → "
+                        + (na.operator == Operator.BOX ? "□" : "◇")
+                        + "_" + na.standpoint
+                        + (na.isRoot
+                        ? " [ROOT][" + na.axiomType + "]"
+                        + (na.isNegatedInner ? "[NEGATED_INNER]" : "")
+                        + " " + na.owlAxiom.getAxiomType().getName()
+                        + ": " + na.owlAxiom
+                        : " " + na.owlTree.getClass().getSimpleName()
+                        + ": " + na.owlTree)
+                        + (na.childKeys != null && !na.childKeys.isEmpty()
+                        ? " children=" + na.childKeys : "")));
+
+        expandToSubClassOf(owlMap);
+
         PipelineLogger.log("\n=== owlMap after injection ===");
         PipelineLogger.log("owlMap size: " + owlMap.size());
         owlMap.forEach((key, na) ->
@@ -105,6 +124,185 @@ public class AnnotationProcessor {
 //        rawOwlMap.forEach((k, v) -> PipelineLogger.log("  " + k + " → " + v));
 //
         return kb;
+    }
+
+    private void expandToSubClassOf(Map<String, NormalisedAxiom> owlMap) {
+
+        List<String> toRemove = new ArrayList<>();
+        Map<String, NormalisedAxiom> toAdd = new LinkedHashMap<>();
+        Set<String> clonedOriginals = new LinkedHashSet<>(); // SP_n that were cloned
+
+        for (Map.Entry<String, NormalisedAxiom> e : owlMap.entrySet()) {
+            String key = e.getKey();
+            NormalisedAxiom na = e.getValue();
+
+            if (!na.isRoot) continue;
+
+            if (na.owlAxiom instanceof OWLEquivalentClassesAxiom) {
+                for (OWLSubClassOfAxiom sub :
+                        ((OWLEquivalentClassesAxiom) na.owlAxiom)
+                                .asOWLSubClassOfAxioms()) {
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(
+                            sub, owlMap, toAdd, clonedOriginals);
+                    String freshKey = placeholderCounter
+                            .generate(PlaceholderType.MODAL_PLACEHOLDER);
+                    toAdd.put(freshKey, new NormalisedAxiom(
+                            na.operator, na.standpoint,
+                            StandpointAxiomType.CONCEPT_INCLUSION,
+                            true, na.isNegatedInner,
+                            cloned, null, na.manchester,
+                            extractChildKeysFromAxiom(cloned)));
+                }
+                toRemove.add(key);
+                continue;
+            }
+
+            if (na.owlAxiom instanceof OWLDisjointClassesAxiom) {
+                for (OWLSubClassOfAxiom sub :
+                        ((OWLDisjointClassesAxiom) na.owlAxiom)
+                                .asOWLSubClassOfAxioms()) {
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(
+                            sub, owlMap, toAdd, clonedOriginals);
+                    String freshKey = placeholderCounter
+                            .generate(PlaceholderType.MODAL_PLACEHOLDER);
+                    toAdd.put(freshKey, new NormalisedAxiom(
+                            na.operator, na.standpoint,
+                            StandpointAxiomType.CONCEPT_INCLUSION,
+                            true, na.isNegatedInner,
+                            cloned, null, na.manchester,
+                            extractChildKeysFromAxiom(cloned)));
+                }
+                toRemove.add(key);
+                continue;
+            }
+
+            if (na.owlAxiom instanceof OWLDisjointUnionAxiom) {
+                OWLDisjointUnionAxiom du = (OWLDisjointUnionAxiom) na.owlAxiom;
+
+                for (OWLSubClassOfAxiom sub :
+                        du.getOWLEquivalentClassesAxiom()
+                                .asOWLSubClassOfAxioms()) {
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(
+                            sub, owlMap, toAdd, clonedOriginals);
+                    String freshKey = placeholderCounter
+                            .generate(PlaceholderType.MODAL_PLACEHOLDER);
+                    toAdd.put(freshKey, new NormalisedAxiom(
+                            na.operator, na.standpoint,
+                            StandpointAxiomType.CONCEPT_INCLUSION,
+                            true, na.isNegatedInner,
+                            cloned, null, na.manchester,
+                            extractChildKeysFromAxiom(cloned)));
+                }
+
+                for (OWLSubClassOfAxiom sub :
+                        du.getOWLDisjointClassesAxiom()
+                                .asOWLSubClassOfAxioms()) {
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(
+                            sub, owlMap, toAdd, clonedOriginals);
+                    String freshKey = placeholderCounter
+                            .generate(PlaceholderType.MODAL_PLACEHOLDER);
+                    toAdd.put(freshKey, new NormalisedAxiom(
+                            na.operator, na.standpoint,
+                            StandpointAxiomType.CONCEPT_INCLUSION,
+                            true, na.isNegatedInner,
+                            cloned, null, na.manchester,
+                            extractChildKeysFromAxiom(cloned)));
+                }
+
+                toRemove.add(key);
+            }
+        }
+
+        // remove multi-axiom roots
+        toRemove.forEach(owlMap::remove);
+        // remove original SP_n that were cloned — they now have fresh copies
+        clonedOriginals.forEach(owlMap::remove);
+        // add all fresh entries
+        owlMap.putAll(toAdd);
+    }
+
+    private OWLSubClassOfAxiom cloneWithFreshPlaceholders(
+            OWLSubClassOfAxiom sub,
+            Map<String, NormalisedAxiom> owlMap,
+            Map<String, NormalisedAxiom> toAdd,
+            Set<String> clonedOriginals) {
+
+        OWLClassExpression subClass = cloneExpr(
+                sub.getSubClass(), owlMap, toAdd, clonedOriginals);
+        OWLClassExpression superClass = cloneExpr(
+                sub.getSuperClass(), owlMap, toAdd, clonedOriginals);
+        return helperDf.getOWLSubClassOfAxiom(subClass, superClass);
+    }
+
+    private OWLClassExpression cloneExpr(
+            OWLClassExpression expr,
+            Map<String, NormalisedAxiom> owlMap,
+            Map<String, NormalisedAxiom> toAdd,
+            Set<String> clonedOriginals) {
+
+        if (expr instanceof OWLClass) {
+            OWLClass cls = (OWLClass) expr;
+            if (PlaceholderType.isModalPlaceholder(cls)) {
+                String oldKey = PlaceholderType.keyOf(cls);
+                String newKey = placeholderCounter
+                        .generate(PlaceholderType.MODAL_PLACEHOLDER);
+
+                // copy original entry under new key
+                NormalisedAxiom original = owlMap.get(oldKey);
+                if (original == null) original = toAdd.get(oldKey);
+                if (original != null) {
+                    toAdd.put(newKey, new NormalisedAxiom(
+                            original.operator, original.standpoint,
+                            original.axiomType, original.isRoot,
+                            original.isNegatedInner,
+                            original.owlAxiom, original.owlTree,
+                            original.manchester, original.childKeys));
+                }
+
+                // mark original as cloned — will be deleted
+                clonedOriginals.add(oldKey);
+
+                registerSPn(newKey);
+
+                return helperDf.getOWLClass(IRI.create(
+                        PlaceholderType.PLUGIN_NS + newKey));
+            }
+            return cls;
+        }
+
+        if (expr instanceof OWLObjectIntersectionOf) {
+            Set<OWLClassExpression> ops = ((OWLObjectIntersectionOf) expr)
+                    .getOperands().stream()
+                    .map(op -> cloneExpr(op, owlMap, toAdd, clonedOriginals))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            return helperDf.getOWLObjectIntersectionOf(ops);
+        }
+        if (expr instanceof OWLObjectUnionOf) {
+            Set<OWLClassExpression> ops = ((OWLObjectUnionOf) expr)
+                    .getOperands().stream()
+                    .map(op -> cloneExpr(op, owlMap, toAdd, clonedOriginals))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            return helperDf.getOWLObjectUnionOf(ops);
+        }
+        if (expr instanceof OWLObjectComplementOf) {
+            return helperDf.getOWLObjectComplementOf(cloneExpr(
+                    ((OWLObjectComplementOf) expr).getOperand(),
+                    owlMap, toAdd, clonedOriginals));
+        }
+        if (expr instanceof OWLObjectSomeValuesFrom) {
+            OWLObjectSomeValuesFrom some = (OWLObjectSomeValuesFrom) expr;
+            return helperDf.getOWLObjectSomeValuesFrom(
+                    some.getProperty(),
+                    cloneExpr(some.getFiller(), owlMap, toAdd, clonedOriginals));
+        }
+        if (expr instanceof OWLObjectAllValuesFrom) {
+            OWLObjectAllValuesFrom all = (OWLObjectAllValuesFrom) expr;
+            return helperDf.getOWLObjectAllValuesFrom(
+                    all.getProperty(),
+                    cloneExpr(all.getFiller(), owlMap, toAdd, clonedOriginals));
+        }
+
+        return expr;
     }
 
     // ─── Expansion ───────────────────────────────────────────────────────────
