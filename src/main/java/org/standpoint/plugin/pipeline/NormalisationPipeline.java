@@ -7,19 +7,6 @@ import org.standpoint.plugin.pipeline.normalisation.AnnotationProcessor;
 import org.standpoint.plugin.pipeline.normalisation.PlaceholderDeduplicator;
 import org.standpoint.plugin.util.PipelineLogger;
 
-/**
- * Pipeline 1 — Normalisation.
- *
- * Steps covered:
- *   1. AnnotationProcessor.run()  — parse annotations, normalise, build manchesterMap + owlMap
- *   2. PlaceholderDeduplicator    — deduplicate, build canonicalKey
- *
- * owlMap is now populated directly by AnnotationProcessor with raw OWL objects
- * (pre-normalisation). ManchesterToOWLConverter is no longer a pipeline stage.
- *
- * Input:  OWLOntology (source)
- * Output: StandpointKnowledgeBase with owlMap and canonicalKey populated
- */
 public class NormalisationPipeline {
 
     private final OWLOntology ontology;
@@ -30,55 +17,33 @@ public class NormalisationPipeline {
 
     public StandpointKnowledgeBase run() throws Exception {
 
-        // Step 1 — Parse annotations and normalise
         PipelineLogger.log("=== STEP 1 — Normalisation ===");
-        AnnotationProcessor annotationProcessor = new AnnotationProcessor(ontology);
-        StandpointKnowledgeBase kb = annotationProcessor.run();
+        StandpointKnowledgeBase kb = new AnnotationProcessor(ontology).run();
 
         if (kb == null) {
             PipelineLogger.log("Pipeline returned null — no formulas found.");
             return null;
         }
 
-//        PipelineLogger.log("Placeholder map size: " + kb.manchesterMap.size());
-//        kb.manchesterMap.forEach((key, mp) ->
-//                PipelineLogger.log("  " + key + " → " + mp.manchester
-//                        + (mp.isRoot ? " [ROOT]" : "")));
-//
-//        // Step 2 — owlMap now populated directly by AnnotationProcessor
-//        PipelineLogger.log("\n=== STEP 2 — owlMap populated by AnnotationProcessor ===");
-//        PipelineLogger.log("owlMap size: " + kb.owlMap.size());
-//        kb.owlMap.forEach((key, ax) -> {
-//            String repr = ax.owlAxiom != null ? ax.owlAxiom.toString()
-//                    : ax.owlTree != null ? ax.owlTree.toString()
-//                    : ax.manchester;
-//            PipelineLogger.log("  " + key + " → "
-//                    + (ax.operator == org.standpoint.plugin.model.Operator.BOX ? "□" : "◇")
-//                    + "_" + ax.standpoint + "[" + repr + "]"
-//                    + (ax.isRoot ? " [ROOT]" : "")
-//                    + (!ax.childKeys.isEmpty() ? " children=" + ax.childKeys : ""));
-//        });
-//
-//        // Step 2b — Deduplicate placeholder map
-//        PipelineLogger.log("\n=== STEP 2b — Deduplication ===");
-//        OWLDataFactory df = kb.sourceOntology
-//                .getOWLOntologyManager().getOWLDataFactory();
-//        PlaceholderDeduplicator deduplicator =
-//                new PlaceholderDeduplicator(kb.owlMap, df);
-//        kb.canonicalKey = deduplicator.deduplicate();
-//
-//        boolean hasDuplicates = kb.canonicalKey.entrySet().stream()
-//                .anyMatch(e -> !e.getKey().equals(e.getValue()));
-//        if (!hasDuplicates) {
-//            PipelineLogger.log("  (no duplicates found)");
-//        } else {
-//            kb.canonicalKey.forEach((k, v) -> {
-//                if (!k.equals(v))
-//                    PipelineLogger.log("  " + k + " → " + v + "  [duplicate]");
-//            });
-//        }
-//
-//        PipelineLogger.log("\n✅ Normalisation pipeline complete.");
+        PipelineLogger.log("\n=== STEP 2 — Deduplication ===");
+        OWLDataFactory df = kb.sourceOntology
+                .getOWLOntologyManager().getOWLDataFactory();
+        kb.canonicalKey = new PlaceholderDeduplicator(kb.owlMap, df).deduplicate();
+
+        boolean hasDuplicates = kb.canonicalKey.entrySet().stream()
+                .anyMatch(e -> !e.getKey().equals(e.getValue()));
+        if (!hasDuplicates) {
+            PipelineLogger.log("  (no duplicates found)");
+        } else {
+            kb.canonicalKey.forEach((k, v) -> {
+                if (!k.equals(v))
+                    PipelineLogger.log("  " + k + " → " + v + "  [duplicate]");
+                else
+                    PipelineLogger.log("  " + k + " → " + v);
+            });
+        }
+
+        PipelineLogger.log("\nNormalisation pipeline complete.");
         return kb;
     }
 }

@@ -15,55 +15,23 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test7.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test7Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test99.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test99Translated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
         OWLOntologyManager manager  = OWLManager.createOWLOntologyManager();
         OWLOntology        ontology = manager.loadOntologyFromOntologyDocument(inputFile);
 
-        // ── Pipeline 1 only ────────────────────────────────
+        // Pipeline 1 — Normalise
         StandpointKnowledgeBase kb = new NormalisationPipeline(ontology).run();
+        if (kb == null) return;
 
-        if (kb == null) {
-            System.out.println("No formulas found.");
-            return;
-        }
+//        // Pipeline 2 — Build worlds
+//        PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
+//
+//        // Pipeline 3 — Translate and save
+//        new TranslationPipeline(kb, ctx, outputFile).run();
 
-//        // ── Print owlMap and STOP ───────────────────────────
-//        System.out.println("\n=== owlMap after normalisation ===");
-//        System.out.println("owlMap size: " + kb.owlMap.size());
-//
-//        ManchesterOWLSyntaxOWLObjectRendererImpl renderer =
-//                new ManchesterOWLSyntaxOWLObjectRendererImpl();
-//
-//        kb.owlMap.forEach((key, ax) -> {
-//            String op = ax.operator == Operator.BOX ? "□" : "◇";
-//
-//            String manchester;
-//            String owlRaw;
-//            String owlType;
-//
-//            if (ax.isRoot) {
-//                manchester = renderer.render(ax.owlAxiom);
-//                owlRaw     = ax.owlAxiom.toString();
-//                owlType    = ax.owlAxiom.getAxiomType().getName();
-//            } else {
-//                manchester = renderer.render(ax.owlTree);
-//                owlRaw     = ax.owlTree.toString();
-//                owlType    = ax.owlTree.getClass().getSimpleName();
-//            }
-//
-//            System.out.println("  " + key + " → " + op + "_" + ax.standpoint
-//                    + (ax.isRoot ? " [ROOT]" : ""));
-//            System.out.println("    Manchester : " + manchester);
-//            System.out.println("    OWL type   : " + owlType);
-//            System.out.println("    OWL raw    : " + owlRaw);
-//            System.out.println();
-//        });
-//
-//        System.out.println("\n✅ Step 2 complete — stopping here.");
-        // Pipelines 2 and 3 NOT called
     }
 }

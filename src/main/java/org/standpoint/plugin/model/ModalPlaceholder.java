@@ -19,7 +19,7 @@ public class ModalPlaceholder {
     public String toString() {
         return "<modal op=\"" + (operator == Operator.BOX ? "box" : "diamond")
                 + "\" standpoint=\"" + standpoint + "\""
-                + (isNegatedInner ? "\" negatedInner=\"true" : "")
+                + (isNegatedInner ? " negatedInner=\"true\"" : "")
                 + ">" + manchester + "</modal>"
                 + (isRoot ? " [ROOT]" : "");
     }

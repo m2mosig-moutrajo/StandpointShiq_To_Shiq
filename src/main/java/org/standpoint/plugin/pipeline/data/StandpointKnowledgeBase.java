@@ -4,6 +4,7 @@ import org.semanticweb.owlapi.model.OWLOntology;
 import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.model.Sharpening;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -15,13 +16,11 @@ public class StandpointKnowledgeBase {
     public Map<String, NormalisedAxiom> owlMap;
     public Map<String, String> canonicalKey;
 
-    public StandpointKnowledgeBase(Map<String, ModalPlaceholder> manchesterMap,
-                                   List<Sharpening> sharpenings,
-                                   OWLOntology sourceOntology) {
-        this.manchesterMap = manchesterMap;
-        this.sharpenings   = sharpenings;
+    public StandpointKnowledgeBase(OWLOntology sourceOntology, List<Sharpening> sharpenings) {
+        this.manchesterMap  = new LinkedHashMap<>();
+        this.sharpenings    = sharpenings;
         this.sourceOntology = sourceOntology;
-        this.owlMap        = null;
+        this.owlMap         = null;
     }
 
     public boolean isEmpty() {
