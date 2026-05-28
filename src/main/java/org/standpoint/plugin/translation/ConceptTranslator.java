@@ -2,6 +2,7 @@ package org.standpoint.plugin.translation;
 
 import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.Operator;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.model.Precisification;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
  * trans(π, □_sC)     = ⊓_{π'∈σ(s)} AUX_D_n_{π'.id}   (SP_n with BOX)
  * trans(π, ◇_sC)     = ⊔_{π'∈σ(s)} AUX_D_n_{π'.id}   (SP_n with DIAMOND)
  *
- * SP_n placeholders are detected via AuxiliaryNameFactory.isPlaceholder().
+ * SP_n placeholders are detected via PlaceholderType.isModalPlaceholder().
  * For modal cases, trans does NOT recurse into C — it produces an
  * intersection/union of auxiliary names. The link AUX_D_n_π ⊑ trans(π,C)
  * is produced separately as Type (1) axioms in StandpointTranslator.
@@ -59,7 +60,7 @@ public class ConceptTranslator {
         // Named class — real concept or SP_n placeholder
         if (concept instanceof OWLClass) {
             OWLClass cls = (OWLClass) concept;
-            if (AuxiliaryNameFactory.isPlaceholder(cls)) {
+            if (PlaceholderType.isModalPlaceholder(cls)) {
                 return transPlaceholder(cls);
             }
             return aux.getCopiedConcept(cls, pi);
@@ -71,7 +72,7 @@ public class ConceptTranslator {
             OWLClassExpression inner = c.getOperand();
             if (inner instanceof OWLClass) {
                 OWLClass cls = (OWLClass) inner;
-                if (AuxiliaryNameFactory.isPlaceholder(cls)) {
+                if (PlaceholderType.isModalPlaceholder(cls)) {
                     return df.getOWLObjectComplementOf(
                             transPlaceholder(cls));
                 }
@@ -177,7 +178,7 @@ public class ConceptTranslator {
      * indexed by π' ranging over σ(s), not the containing π.
      */
     private OWLClassExpression transPlaceholder(OWLClass placeholder) {
-        String spKey = AuxiliaryNameFactory.getPlaceholderKey(placeholder);
+        String spKey = PlaceholderType.keyOf(placeholder);
         NormalisedAxiom ax = owlMap.get(spKey);
 
         if (ax == null) {

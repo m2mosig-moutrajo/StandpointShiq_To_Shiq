@@ -62,7 +62,7 @@ public class TranslationPipeline {
                 .map(a -> (OWLSubClassOfAxiom) a)
                 .filter(a -> a.getSubClass() instanceof OWLClass
                         && a.getSubClass().asOWLClass()
-                        .getIRI().getShortForm().startsWith("AUX_"))
+                        .getIRI().getShortForm().startsWith(AuxiliaryNameFactory.AUX_PREFIX))
                 .forEach(a -> PipelineLogger.log("    " + a));
 
         PipelineLogger.log("\n  -- Type (2)-(6): Root axiom translations --");

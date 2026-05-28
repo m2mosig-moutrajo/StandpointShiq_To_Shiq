@@ -121,8 +121,7 @@ public class PrecisificationPipeline {
         // Step 6 — Build precisification set
         PipelineLogger.log("\n=== STEP 6 — Build Π_K ===");
 
-        PrecisificationSet precSet = PrecisificationSet.build(
-                standpoints, diamonds, usedIndividuals, closures);
+        PrecisificationSet precSet = PrecisificationSet.build(standpoints, diamonds, usedIndividuals, closures);
 
         PipelineLogger.log("  Total precisifications: " + precSet.size());
         PipelineLogger.log("  STANDPOINT worlds:");
