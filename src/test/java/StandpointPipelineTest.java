@@ -2,6 +2,8 @@ import org.junit.Test;
 import org.junit.Assert;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
+import org.standpoint.plugin.model.PlaceholderType;
+import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.normalisation.AnnotationProcessor;
 import org.standpoint.plugin.util.PipelineLogger;
@@ -24,18 +26,7 @@ public class StandpointPipelineTest {
 
     @Test
     public void testRandomGeneration() throws Exception {
-        runTest(
-                2,  // CONCEPT_INCLUSION
-                2,  // CONCEPT_ASSERTION
-                2,  // ROLE_INCLUSION
-                2,  // ROLE_ASSERTION
-                2,  // ROLE_TRANSITIVITY
-                2,  // NESTED concept inclusions
-                2,  // formulas
-                10,  // normal sharpenings
-                10,  // zero sharpenings
-                10   // negated sharpenings
-        );
+        runTest(2, 2, 2, 2, 2, 2, 2, 10, 10, 10);
     }
 
     private void runTest(
@@ -68,13 +59,16 @@ public class StandpointPipelineTest {
                 standpoints, numNormalSharpenings,
                 numZeroSharpenings, numNegatedSharpenings);
 
-        ExpectedCounts expected = computeExpected(formulas, sharpenings);
+        ExpectedCounts expected = computeExpected(axioms, formulas, sharpenings);
 
         OWLOntology ontology = buildOntology(axioms, formulas, sharpenings);
+
+        PipelineLogger.setLevel(PipelineLogger.Level.ON);
         StandpointKnowledgeBase result = new AnnotationProcessor(ontology).run();
 
-        long actualRoots = result.manchesterMap.values().stream()
-                .filter(e -> e.isRoot)
+        // count root entries in owlMap
+        long actualRoots = result.owlMap.values().stream()
+                .filter(na -> na.isRoot)
                 .count();
 
         System.out.println("\n=== TEST RESULTS ===");
@@ -83,14 +77,46 @@ public class StandpointPipelineTest {
         System.out.println("Expected sharpenings: " + expected.sharpeningCount);
         System.out.println("Actual sharpenings:   " + result.sharpenings.size());
         System.out.println("Expected fresh FC:    " + expected.freshConceptCount);
-        System.out.println("Actual fresh FC:      " + countFresh(result, "FC_"));
+        System.out.println("Actual fresh FC:      " + countFreshConcepts(result));
         System.out.println("Expected fresh FR:    " + expected.freshRoleCount);
-        System.out.println("Actual fresh FR:      " + countFresh(result, "FR_"));
+        System.out.println("Actual fresh FR:      " + countFreshRoles(result));
 
         Assert.assertEquals("Axiom count mismatch",
                 expected.axiomCount, (int) actualRoots);
         Assert.assertEquals("Sharpening count mismatch",
                 expected.sharpeningCount, result.sharpenings.size());
+    }
+
+    // ===== Fresh entity counters — scan OWL axiom signatures =====
+
+    private int countFreshConcepts(StandpointKnowledgeBase result) {
+        Set<String> found = new HashSet<>();
+        for (NormalisedAxiom na : result.owlMap.values()) {
+            Set<OWLClass> classes = na.isRoot && na.owlAxiom != null
+                    ? na.owlAxiom.getClassesInSignature()
+                    : na.owlTree != null
+                    ? na.owlTree.getClassesInSignature()
+                    : Collections.emptySet();
+            for (OWLClass cls : classes) {
+                String shortForm = cls.getIRI().getShortForm();
+                if (shortForm.startsWith(PlaceholderType.FRESH_CONCEPT.prefix))
+                    found.add(shortForm);
+            }
+        }
+        return found.size();
+    }
+
+    private int countFreshRoles(StandpointKnowledgeBase result) {
+        Set<String> found = new HashSet<>();
+        for (NormalisedAxiom na : result.owlMap.values()) {
+            if (na.owlAxiom == null) continue;
+            for (OWLObjectProperty prop : na.owlAxiom.getObjectPropertiesInSignature()) {
+                String shortForm = prop.getIRI().getShortForm();
+                if (shortForm.startsWith(PlaceholderType.FRESH_ROLE.prefix))
+                    found.add(shortForm);
+            }
+        }
+        return found.size();
     }
 
     // ===== Axiom generators =====
@@ -175,8 +201,9 @@ public class StandpointPipelineTest {
         String b    = freshIndividual();
         String role = freshRole();
         boolean negated = new Random().nextBoolean();
+        // use Individual: frame syntax — required by parseAxiom() for ROLE_ASSERTION
         return new GeneratedAxiom(freshAxiomId(),
-                a + " " + role + " " + b,
+                "Individual: " + a + " Facts: " + role + " " + b,
                 AxiomKind.ROLE_ASSERTION, negated);
     }
 
@@ -255,9 +282,8 @@ public class StandpointPipelineTest {
 
         Random rand = new Random();
         List<String> pool = new ArrayList<>(standpoints);
-        Set<String> usedKeys = new HashSet<>(); // track duplicates
+        Set<String> usedKeys = new HashSet<>();
 
-        // Normal
         for (int i = 0; i < numNormal && pool.size() >= 2; i++) {
             for (int attempt = 0; attempt < 10; attempt++) {
                 Collections.shuffle(pool, rand);
@@ -273,7 +299,6 @@ public class StandpointPipelineTest {
             }
         }
 
-        // Zero
         for (int i = 0; i < numZero && pool.size() >= 1; i++) {
             for (int attempt = 0; attempt < 10; attempt++) {
                 Collections.shuffle(pool, rand);
@@ -288,7 +313,6 @@ public class StandpointPipelineTest {
             }
         }
 
-        // Negated
         for (int i = 0; i < numNegated && pool.size() >= 2; i++) {
             for (int attempt = 0; attempt < 10; attempt++) {
                 Collections.shuffle(pool, rand);
@@ -317,86 +341,76 @@ public class StandpointPipelineTest {
     }
 
     private ExpectedCounts computeExpected(
+            List<GeneratedAxiom> allAxioms,           // ← add this
             List<GeneratedFormula> formulas,
             List<GeneratedSharpening> sharpenings) {
 
         ExpectedCounts counts = new ExpectedCounts();
 
-        // Formula-based axioms
+        // collect all axiom IDs referenced by any formula
+        Set<String> referencedIds = new HashSet<>();
+        for (GeneratedFormula formula : formulas)
+            for (GeneratedAxiom axiom : formula.literals)
+                referencedIds.add(axiom.id);
+
+        // unreferenced axioms → each wrapped as □_*[axiom] by injectUnreferencedAxioms
+        // non-negated, so each contributes exactly 1 root entry
+        for (GeneratedAxiom axiom : allAxioms)
+            if (!referencedIds.contains(axiom.id))
+                counts.axiomCount += 1;
+
+        // formula-based axioms — unchanged
         for (GeneratedFormula formula : formulas) {
-            if ("diamond".equals(formula.operator)) {
-                counts.sharpeningCount++; // Rule (1): FS_x ⪯ s
-            }
+            if ("diamond".equals(formula.operator))
+                counts.sharpeningCount++;
 
             for (GeneratedAxiom axiom : formula.literals) {
                 if (axiom.negated) {
                     switch (axiom.kind) {
                         case CONCEPT_INCLUSION:
-                            // Rule (3): 3 axioms, 1 FC, 1 FR
                             counts.axiomCount        += 3;
                             counts.freshConceptCount += 1;
                             counts.freshRoleCount    += 1;
                             break;
                         case CONCEPT_ASSERTION:
-                            // Rule (4): 1 axiom
                             counts.axiomCount += 1;
                             break;
                         case ROLE_INCLUSION:
-                            // Rule (6): 3 axioms, 2 FC, 1 FR
                             counts.axiomCount        += 3;
                             counts.freshConceptCount += 2;
                             counts.freshRoleCount    += 1;
                             break;
                         case ROLE_ASSERTION:
-                            // Rule (5): 3 axioms, 2 FC
                             counts.axiomCount        += 3;
                             counts.freshConceptCount += 2;
                             break;
                         case ROLE_TRANSITIVITY:
-                            // Rule (7): 3 axioms, 2 FC, 1 FR
                             counts.axiomCount        += 3;
                             counts.freshConceptCount += 2;
                             counts.freshRoleCount    += 1;
                             break;
                     }
                 } else {
-                    // Non-negated: 1 axiom (Rule 10/11)
                     counts.axiomCount += 1;
                 }
             }
         }
 
-        // Sharpening-based counts
+        // sharpening-based counts — unchanged
         for (GeneratedSharpening s : sharpenings) {
-            int n = s.lhs.size(); // number of LHS standpoints
-
+            int n = s.lhs.size();
             switch (s.kind) {
                 case NORMAL:
-                    // Rule: added directly to sharpening list → +1 sharpening
                     counts.sharpeningCount += 1;
                     break;
-
                 case ZERO:
-                    // Rule (9): s1 ∩ ... ∩ sn ⪯ 0
-                    // → n axioms (□_si[⊤⊑FCi]) + 1 global GCI (□_*[FC1∩...∩FCn⊑⊥])
-                    // → n fresh concepts
                     counts.axiomCount        += n + 1;
                     counts.freshConceptCount += n;
                     break;
-
                 case NEGATED:
-                    // Rule (8): ¬(s1 ∩ ... ∩ sn ⪯ u)
-                    // → fresh FS_x
-                    // → n sharpenings: FS_x ⪯ s1, ..., FS_x ⪯ sn
-                    // → 1 zero sharpening: FS_x ∩ u ⪯ 0
-                    //
-                    // Then Rule (9) fires on {FS_x ∩ u ⪯ 0} — LHS size = 2
-                    // → 2 axioms (□_FS_x[⊤⊑FC_a], □_u[⊤⊑FC_b])
-                    // → 1 global GCI (□_*[FC_a ∩ FC_b ⊑ ⊥])
-                    // → 2 fresh concepts
-                    counts.sharpeningCount   += n;     // FS_x ⪯ s1...sn
-                    counts.axiomCount        += 3;     // Rule(9): 2 GCIs + 1 global
-                    counts.freshConceptCount += 2;     // FC_a, FC_b from Rule(9)
+                    counts.sharpeningCount   += n;
+                    counts.axiomCount        += 3;
+                    counts.freshConceptCount += 2;
                     break;
             }
         }
@@ -458,50 +472,40 @@ public class StandpointPipelineTest {
                                    OWLDataFactory df, String base) {
         switch (axiom.kind) {
             case CONCEPT_INCLUSION: {
-                String subName, superName;
-                if (axiom.extraC != null && axiom.extraD != null) {
-                    subName   = axiom.extraC;
-                    superName = axiom.extraD;
-                } else {
-                    String[] parts = axiom.manchesterContent.split(" SubClassOf: ");
-                    subName   = parts[0].trim();
-                    superName = parts[1].trim();
-                }
-                OWLClass C = df.getOWLClass(IRI.create(base + subName));
-                OWLClass D = df.getOWLClass(IRI.create(base + superName));
-                return df.getOWLSubClassOfAxiom(C, D);
+                String subName   = axiom.extraC != null ? axiom.extraC
+                        : axiom.manchesterContent.split(" SubClassOf: ")[0].trim();
+                String superName = axiom.extraD != null ? axiom.extraD
+                        : axiom.manchesterContent.split(" SubClassOf: ")[1].trim();
+                return df.getOWLSubClassOfAxiom(
+                        df.getOWLClass(IRI.create(base + subName)),
+                        df.getOWLClass(IRI.create(base + superName)));
             }
             case CONCEPT_ASSERTION: {
                 String[] parts = axiom.manchesterContent.split(" Type: ");
-                OWLNamedIndividual ind = df.getOWLNamedIndividual(
-                        IRI.create(base + parts[0].trim()));
-                OWLClass C = df.getOWLClass(IRI.create(base + parts[1].trim()));
-                return df.getOWLClassAssertionAxiom(C, ind);
+                return df.getOWLClassAssertionAxiom(
+                        df.getOWLClass(IRI.create(base + parts[1].trim())),
+                        df.getOWLNamedIndividual(IRI.create(base + parts[0].trim())));
             }
             case ROLE_INCLUSION: {
                 String[] parts = axiom.manchesterContent.split(" SubPropertyOf: ");
-                OWLObjectProperty S = df.getOWLObjectProperty(
-                        IRI.create(base + parts[0].trim()));
-                OWLObjectProperty R = df.getOWLObjectProperty(
-                        IRI.create(base + parts[1].trim()));
-                return df.getOWLSubObjectPropertyOfAxiom(S, R);
+                return df.getOWLSubObjectPropertyOfAxiom(
+                        df.getOWLObjectProperty(IRI.create(base + parts[0].trim())),
+                        df.getOWLObjectProperty(IRI.create(base + parts[1].trim())));
             }
             case ROLE_ASSERTION: {
-                String[] parts = axiom.manchesterContent.trim().split("\\s+");
-                OWLNamedIndividual a = df.getOWLNamedIndividual(
-                        IRI.create(base + parts[0]));
-                OWLObjectProperty r = df.getOWLObjectProperty(
-                        IRI.create(base + parts[1]));
-                OWLNamedIndividual b = df.getOWLNamedIndividual(
-                        IRI.create(base + parts[2]));
-                return df.getOWLObjectPropertyAssertionAxiom(r, a, b);
+                // "Individual: a Facts: role b"
+                String content = axiom.manchesterContent
+                        .replace("Individual:", "").replace("Facts:", "").trim();
+                String[] parts = content.trim().split("\\s+");
+                return df.getOWLObjectPropertyAssertionAxiom(
+                        df.getOWLObjectProperty(IRI.create(base + parts[1])),
+                        df.getOWLNamedIndividual(IRI.create(base + parts[0])),
+                        df.getOWLNamedIndividual(IRI.create(base + parts[2])));
             }
             case ROLE_TRANSITIVITY: {
-                String role = axiom.manchesterContent
-                        .replace("Transitive", "").trim();
-                OWLObjectProperty r = df.getOWLObjectProperty(
-                        IRI.create(base + role));
-                return df.getOWLTransitiveObjectPropertyAxiom(r);
+                String role = axiom.manchesterContent.replace("Transitive", "").trim();
+                return df.getOWLTransitiveObjectPropertyAxiom(
+                        df.getOWLObjectProperty(IRI.create(base + role)));
             }
             default: throw new IllegalArgumentException("Unknown kind");
         }
@@ -533,47 +537,30 @@ public class StandpointPipelineTest {
 
     private String buildSharpeningXml(GeneratedSharpening s) {
         StringBuilder sb = new StringBuilder();
-        if (s.kind == SharpeningKind.NEGATED) {
+        if (s.kind == SharpeningKind.NEGATED)
             sb.append("<sharpening negated=\"true\">");
-        } else {
+        else
             sb.append("<sharpening>");
-        }
 
         sb.append("<lhs>");
         if (s.lhs.size() == 1) {
             sb.append("<standpoint>").append(s.lhs.get(0)).append("</standpoint>");
         } else {
             sb.append("<intersection>");
-            for (String sp : s.lhs) {
+            for (String sp : s.lhs)
                 sb.append("<standpoint>").append(sp).append("</standpoint>");
-            }
             sb.append("</intersection>");
         }
         sb.append("</lhs>");
 
         sb.append("<rhs>");
-        if ("0".equals(s.rhs)) {
+        if ("0".equals(s.rhs))
             sb.append("<zero/>");
-        } else {
+        else
             sb.append("<standpoint>").append(s.rhs).append("</standpoint>");
-        }
         sb.append("</rhs>");
 
         sb.append("</sharpening>");
         return sb.toString();
-    }
-
-    // ===== Helpers =====
-
-    private int countFresh(StandpointKnowledgeBase result, String prefix) {
-        Set<String> found = new HashSet<>();
-        for (Map.Entry<String, ?> e : result.manchesterMap.entrySet()) {
-            String manchester = result.manchesterMap
-                    .get(e.getKey()).manchester;
-            for (String token : manchester.split("\\s+|\\(|\\)")) {
-                if (token.startsWith(prefix)) found.add(token);
-            }
-        }
-        return found.size();
     }
 }

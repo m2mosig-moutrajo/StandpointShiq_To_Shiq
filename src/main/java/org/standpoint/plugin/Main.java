@@ -15,8 +15,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test99.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test99Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test4444.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test4444Translated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
@@ -27,11 +27,11 @@ public class Main {
         StandpointKnowledgeBase kb = new NormalisationPipeline(ontology).run();
         if (kb == null) return;
 
-//        // Pipeline 2 — Build worlds
-//        PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
-//
-//        // Pipeline 3 — Translate and save
-//        new TranslationPipeline(kb, ctx, outputFile).run();
+        // Pipeline 2 — Build worlds
+        PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
+
+        // Pipeline 3 — Translate and save
+        new TranslationPipeline(kb, ctx, outputFile).run();
 
     }
 }

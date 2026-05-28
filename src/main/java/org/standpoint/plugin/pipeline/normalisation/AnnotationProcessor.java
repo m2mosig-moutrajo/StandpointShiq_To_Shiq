@@ -47,10 +47,7 @@ public class AnnotationProcessor {
         List<Sharpening> loadedSharpening = ontologyLoader.loadSharpening(ontology);
 
         logLoadedSharpening(loadedSharpening);
-        logOriginalFormulas(formulas, axiomLabelMap);
-
-        // TODO: we continue even without these
-        if (formulas.isEmpty() && loadedSharpening.isEmpty()) return null;
+        logOriginalFormulas(formulas, axiomLabelMap) ;
 
         List<Sharpening> sharpening = new ArrayList<>();
 
@@ -67,7 +64,7 @@ public class AnnotationProcessor {
 
         logOwlMap(owlMap, "owlMap before expand to SubClassOf");
 
-        expandToSubClassOf(owlMap);
+        expandMultiAxiomToSubClassOf(owlMap);
 
         logOwlMap(owlMap, "owlMap after expand to SubClassOf");
 
@@ -77,8 +74,9 @@ public class AnnotationProcessor {
         applyNegatedRoleInclusion(owlMap);
         applyNegatedRoleAssertion(owlMap);
         applyNegatedTransitivity(owlMap);
-        applyNegatedSharpenings(loadedSharpening, sharpening, owlMap);
-        applyZeroSharpenings(sharpening, loadedSharpening, owlMap);
+        applyDualityRestoration(owlMap);
+        applyNegatedSharpening(loadedSharpening, sharpening, owlMap);
+        applyZeroSharpening(sharpening, loadedSharpening, owlMap);
         collectNormalSharpenings(loadedSharpening, sharpening);
 
         sharpening.removeIf(s -> s.lhsStandpoints.contains("0"));
@@ -87,6 +85,193 @@ public class AnnotationProcessor {
         StandpointKnowledgeBase kb = new StandpointKnowledgeBase(ontology, sharpening);
         kb.owlMap = owlMap;
         return kb;
+    }
+
+    private void applyDualityRestoration(Map<String, NormalisedAxiom> owlMap) {
+        PipelineLogger.log("\n=== DUALITY RESTORATION ===\n");
+
+        boolean changed = true;
+        int iterations = 0;
+
+        while (changed) {
+            changed = false;
+            iterations++;
+
+            for (Map.Entry<String, NormalisedAxiom> e : new ArrayList<>(owlMap.entrySet())) {
+                String key = e.getKey();
+                NormalisedAxiom na = e.getValue();
+
+                // check non-root concept expressions
+                if (!na.isRoot && na.owlTree != null) {
+                    OWLClassExpression resolved = resolveDualityExpr(na.owlTree, owlMap);
+                    if (!resolved.equals(na.owlTree)) {
+                        owlMap.put(key, new NormalisedAxiom(
+                                na.operator, na.standpoint, na.axiomType,
+                                na.isRoot, na.isNegatedInner,
+                                null, resolved,
+                                na.manchester,
+                                extractChildKeysFromExpr(resolved)));
+                        PipelineLogger.log("  [" + key + "] expr: "
+                                + na.owlTree + "\n    → " + resolved);
+                        changed = true;
+                    }
+                }
+
+                // check root axioms
+                if (na.isRoot && na.owlAxiom != null) {
+                    OWLAxiom resolved = resolveDualityAxiom(na.owlAxiom, owlMap);
+                    if (!resolved.equals(na.owlAxiom)) {
+                        owlMap.put(key, new NormalisedAxiom(
+                                na.operator, na.standpoint, na.axiomType,
+                                na.isRoot, na.isNegatedInner,
+                                resolved, null,
+                                na.manchester,
+                                extractChildKeysFromAxiom(resolved)));
+                        PipelineLogger.log("  [" + key + "] axiom: "
+                                + na.owlAxiom + "\n    → " + resolved);
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        PipelineLogger.log("  Duality restoration complete in "
+                + iterations + " iteration(s).");
+    }
+
+    /**
+     * Walks an OWLAxiom looking for ObjectComplementOf(SP_n).
+     * Delegates to resolveDualityExpr for class expressions inside.
+     */
+    private OWLAxiom resolveDualityAxiom(
+            OWLAxiom axiom,
+            Map<String, NormalisedAxiom> owlMap) {
+
+        if (axiom instanceof OWLSubClassOfAxiom) {
+            OWLSubClassOfAxiom sub = (OWLSubClassOfAxiom) axiom;
+            OWLClassExpression newSub   = resolveDualityExpr(sub.getSubClass(), owlMap);
+            OWLClassExpression newSuper = resolveDualityExpr(sub.getSuperClass(), owlMap);
+            if (newSub.equals(sub.getSubClass()) && newSuper.equals(sub.getSuperClass()))
+                return axiom;
+            return helperDf.getOWLSubClassOfAxiom(newSub, newSuper);
+        }
+        if (axiom instanceof OWLClassAssertionAxiom) {
+            OWLClassAssertionAxiom ca = (OWLClassAssertionAxiom) axiom;
+            OWLClassExpression newExpr = resolveDualityExpr(ca.getClassExpression(), owlMap);
+            if (newExpr.equals(ca.getClassExpression())) return axiom;
+            return helperDf.getOWLClassAssertionAxiom(
+                    newExpr, (OWLNamedIndividual) ca.getIndividual());
+        }
+        return axiom;
+    }
+
+    /**
+     * Walks an OWLClassExpression.
+     * When it finds ObjectComplementOf(SP_n):
+     *   1. Remove the ObjectComplementOf wrapper from the parent expression
+     *   2. Go to SP_n entry in owlMap
+     *   3. Flip its operator (BOX→DIAMOND or DIAMOND→BOX)
+     *   4. Wrap its owlTree with ObjectComplementOf
+     *   5. Call getNNF() — pushes negation inward
+     *   6. Return bare SP_n class (complement removed from parent)
+     */
+    private OWLClassExpression resolveDualityExpr(
+            OWLClassExpression expr,
+            Map<String, NormalisedAxiom> owlMap) {
+
+        // ── Core case: ObjectComplementOf(SP_n) ──────────────────────────────────
+        if (expr instanceof OWLObjectComplementOf) {
+            OWLClassExpression operand =
+                    ((OWLObjectComplementOf) expr).getOperand();
+
+            if (operand instanceof OWLClass
+                    && PlaceholderType.isModalPlaceholder((OWLClass) operand)) {
+
+                String spKey = PlaceholderType.keyOf((OWLClass) operand);
+                NormalisedAxiom spEntry = owlMap.get(spKey);
+
+                if (spEntry != null && spEntry.owlTree != null) {
+                    // step 3 — flip operator
+                    Operator flipped = spEntry.operator == Operator.BOX
+                            ? Operator.DIAMOND : Operator.BOX;
+
+                    // step 4 — wrap owlTree with ObjectComplementOf
+                    // step 5 — getNNF() pushes negation inward
+                    OWLClassExpression negated =
+                            helperDf.getOWLObjectComplementOf(spEntry.owlTree)
+                                    .getNNF();
+
+                    // update SP_n entry — flipped operator, negated+NNF content
+                    owlMap.put(spKey, new NormalisedAxiom(
+                            flipped, spEntry.standpoint, spEntry.axiomType,
+                            spEntry.isRoot, spEntry.isNegatedInner,
+                            null, negated,
+                            spEntry.manchester,
+                            extractChildKeysFromExpr(negated)));
+
+                    PipelineLogger.log("    Duality on " + spKey + ": "
+                            + spEntry.operator + "[" + spEntry.owlTree + "]"
+                            + " → " + flipped + "[" + negated + "]");
+
+                    // step 6 — return bare SP_n (complement removed from parent)
+                    return operand;
+                }
+            }
+        }
+
+        // ── Recurse into complex expressions ─────────────────────────────────────
+
+        if (expr instanceof OWLObjectIntersectionOf) {
+            Set<OWLClassExpression> ops = ((OWLObjectIntersectionOf) expr)
+                    .getOperands().stream()
+                    .map(op -> resolveDualityExpr(op, owlMap))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            return helperDf.getOWLObjectIntersectionOf(ops);
+        }
+        if (expr instanceof OWLObjectUnionOf) {
+            Set<OWLClassExpression> ops = ((OWLObjectUnionOf) expr)
+                    .getOperands().stream()
+                    .map(op -> resolveDualityExpr(op, owlMap))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            return helperDf.getOWLObjectUnionOf(ops);
+        }
+        if (expr instanceof OWLObjectComplementOf) {
+            // non-placeholder complement — recurse into operand
+            return helperDf.getOWLObjectComplementOf(resolveDualityExpr(
+                    ((OWLObjectComplementOf) expr).getOperand(), owlMap));
+        }
+        if (expr instanceof OWLObjectSomeValuesFrom) {
+            OWLObjectSomeValuesFrom some = (OWLObjectSomeValuesFrom) expr;
+            return helperDf.getOWLObjectSomeValuesFrom(
+                    some.getProperty(),
+                    resolveDualityExpr(some.getFiller(), owlMap));
+        }
+        if (expr instanceof OWLObjectAllValuesFrom) {
+            OWLObjectAllValuesFrom all = (OWLObjectAllValuesFrom) expr;
+            return helperDf.getOWLObjectAllValuesFrom(
+                    all.getProperty(),
+                    resolveDualityExpr(all.getFiller(), owlMap));
+        }
+        if (expr instanceof OWLObjectMinCardinality) {
+            OWLObjectMinCardinality card = (OWLObjectMinCardinality) expr;
+            return helperDf.getOWLObjectMinCardinality(
+                    card.getCardinality(), card.getProperty(),
+                    resolveDualityExpr(card.getFiller(), owlMap));
+        }
+        if (expr instanceof OWLObjectMaxCardinality) {
+            OWLObjectMaxCardinality card = (OWLObjectMaxCardinality) expr;
+            return helperDf.getOWLObjectMaxCardinality(
+                    card.getCardinality(), card.getProperty(),
+                    resolveDualityExpr(card.getFiller(), owlMap));
+        }
+        if (expr instanceof OWLObjectExactCardinality) {
+            OWLObjectExactCardinality card = (OWLObjectExactCardinality) expr;
+            return helperDf.getOWLObjectExactCardinality(
+                    card.getCardinality(), card.getProperty(),
+                    resolveDualityExpr(card.getFiller(), owlMap));
+        }
+
+        return expr;
     }
 
     private void applyGCINormalisation(Map<String, NormalisedAxiom> owlMap) {
@@ -162,9 +347,9 @@ public class AnnotationProcessor {
             registerFreshRole(frName);
 
             // FC ⊑ C  →  Thing ⊑ NNF(¬FC ⊔ C)
-            OWLAxiom ax1 = applyRule11(freshC, C);
+            OWLAxiom ax1 = normaliseSubClassOf(freshC, C);
             // (FC ⊓ D) ⊑ ⊥  →  Thing ⊑ NNF(¬FC ⊔ ¬D)
-            OWLAxiom ax2 = applyRule11(
+            OWLAxiom ax2 = normaliseSubClassOf(
                     helperDf.getOWLObjectIntersectionOf(freshC, D), helperDf.getOWLNothing());
             // Thing ⊑ ∃FR.FC
             OWLAxiom ax3 = helperDf.getOWLSubClassOfAxiom(
@@ -274,12 +459,12 @@ public class AnnotationProcessor {
                     helperDf.getOWLThing(),
                     helperDf.getOWLObjectSomeValuesFrom(freshRProp, freshCa));
             // (FCa ⊓ ∃R.FCb) ⊑ ⊥  →  Rule (11)
-            OWLAxiom ax2 = applyRule11(
+            OWLAxiom ax2 = normaliseSubClassOf(
                     helperDf.getOWLObjectIntersectionOf(
                             freshCa, helperDf.getOWLObjectSomeValuesFrom(R, freshCb)),
                     helperDf.getOWLNothing());
             // FCa ⊑ ∃S.FCb  →  Rule (11)
-            OWLAxiom ax3 = applyRule11(
+            OWLAxiom ax3 = normaliseSubClassOf(
                     freshCa, helperDf.getOWLObjectSomeValuesFrom(S, freshCb));
 
             String k1 = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
@@ -338,7 +523,7 @@ public class AnnotationProcessor {
 
             OWLAxiom ax1 = helperDf.getOWLClassAssertionAxiom(freshCa, a);
             OWLAxiom ax2 = helperDf.getOWLClassAssertionAxiom(freshCb, b);
-            OWLAxiom ax3 = applyRule11(
+            OWLAxiom ax3 = normaliseSubClassOf(
                     helperDf.getOWLObjectIntersectionOf(
                             freshCa, helperDf.getOWLObjectSomeValuesFrom(role, freshCb)),
                     helperDf.getOWLNothing());
@@ -404,12 +589,12 @@ public class AnnotationProcessor {
                     helperDf.getOWLThing(),
                     helperDf.getOWLObjectSomeValuesFrom(freshRProp, freshCa));
             // (FCa ⊓ ∃role.FCb) ⊑ ⊥  →  Rule (11)
-            OWLAxiom ax2 = applyRule11(
+            OWLAxiom ax2 = normaliseSubClassOf(
                     helperDf.getOWLObjectIntersectionOf(
                             freshCa, helperDf.getOWLObjectSomeValuesFrom(role, freshCb)),
                     helperDf.getOWLNothing());
             // FCa ⊑ ∃role.∃role.FCb  →  Rule (11)
-            OWLAxiom ax3 = applyRule11(
+            OWLAxiom ax3 = normaliseSubClassOf(
                     freshCa,
                     helperDf.getOWLObjectSomeValuesFrom(
                             role, helperDf.getOWLObjectSomeValuesFrom(role, freshCb)));
@@ -443,7 +628,7 @@ public class AnnotationProcessor {
 
     // ─── Rule (8): negated sharpenings ───────────────────────────────────────
 
-    private void applyNegatedSharpenings(List<Sharpening> loadedSharpenings,
+    private void applyNegatedSharpening(List<Sharpening> loadedSharpenings,
                                          List<Sharpening> sharpenings,
                                          Map<String, NormalisedAxiom> owlMap) {
         PipelineLogger.log("\n=== RULE (8): NEGATED SHARPENING ===\n");
@@ -471,7 +656,7 @@ public class AnnotationProcessor {
 
     // ─── Rule (9): zero sharpenings ──────────────────────────────────────────
 
-    private void applyZeroSharpenings(List<Sharpening> sharpenings,
+    private void applyZeroSharpening(List<Sharpening> sharpenings,
                                       List<Sharpening> loadedSharpenings,
                                       Map<String, NormalisedAxiom> owlMap) {
         PipelineLogger.log("\n=== RULE (9): ZERO SHARPENING ===\n");
@@ -513,7 +698,7 @@ public class AnnotationProcessor {
             OWLClassExpression intersection = freshConcepts.size() == 1
                     ? freshConcepts.get(0)
                     : helperDf.getOWLObjectIntersectionOf(new HashSet<>(freshConcepts));
-            OWLAxiom globalAxiom = applyRule11(intersection, helperDf.getOWLNothing());
+            OWLAxiom globalAxiom = normaliseSubClassOf(intersection, helperDf.getOWLNothing());
             String globalKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
             registerSPn(globalKey);
             owlMap.put(globalKey, owlRootEntry(Operator.BOX, "*",
@@ -538,7 +723,7 @@ public class AnnotationProcessor {
         }
     }
 
-    private void expandToSubClassOf(Map<String, NormalisedAxiom> owlMap) {
+    private void expandMultiAxiomToSubClassOf(Map<String, NormalisedAxiom> owlMap) {
 
         // Keys of multi-axiom root entries to remove after iteration
         // (EquivalentClasses, DisjointClasses, DisjointUnion)
@@ -555,6 +740,10 @@ public class AnnotationProcessor {
         //          SP_3 is now orphaned — no parent references it anymore → deleted
         Set<String> clonedOriginals = new LinkedHashSet<>();
 
+        PipelineLogger.log("\nWARNING: negation of multi-axiom types "
+                + "(EquivalentClasses, DisjointClasses, DisjointUnion) "
+                + "is not supported. Treating as non-negated.");
+
         for (Map.Entry<String, NormalisedAxiom> e : owlMap.entrySet()) {
             String key = e.getKey();
             NormalisedAxiom na = e.getValue();
@@ -567,23 +756,27 @@ public class AnnotationProcessor {
             // A EquivalentTo: B  →  SubClassOf(A, B) + SubClassOf(B, A)
             // OWL API asOWLSubClassOfAxioms() produces both directions automatically
             if (na.owlAxiom instanceof OWLEquivalentClassesAxiom) {
+
+                if(na.isNegatedInner)
+                    PipelineLogger.log("\nWARNING: negatedInner ignored for " + na.owlAxiom.getAxiomType().getName() + " [" + key + "] is not supported. Treating as non-negated.");
+
                 for (OWLSubClassOfAxiom sub :
                         ((OWLEquivalentClassesAxiom) na.owlAxiom).asOWLSubClassOfAxioms()) {
+
+                    // generate a fresh SP_n key for the new SubClassOf root entry
+                    String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
 
                     // if the SubClassOf contains SP_n placeholders as children,
                     // clone them into fresh copies so no SP_n is shared between
                     // two parent entries — each SubClassOf owns its children exclusively
                     OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
-                    // generate a fresh SP_n key for the new SubClassOf root entry
-                    String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
-
                     // inherit operator and standpoint from the original EquivalentClasses entry
                     // axiom type becomes CONCEPT_INCLUSION — it is now a plain SubClassOf
                     toAdd.put(freshKey, new NormalisedAxiom(
                             na.operator, na.standpoint,
                             StandpointAxiomType.CONCEPT_INCLUSION,
-                            true, na.isNegatedInner,
+                            true, false,
                             cloned, null, na.manchester,
                             extractChildKeysFromAxiom(cloned)));
                 }
@@ -598,18 +791,22 @@ public class AnnotationProcessor {
             //                               SubClassOf(B, not(C))
             // OWL API asOWLSubClassOfAxioms() generates all pairs automatically
             if (na.owlAxiom instanceof OWLDisjointClassesAxiom) {
+
+                if(na.isNegatedInner)
+                    PipelineLogger.log("WARNING: negatedInner ignored for " + na.owlAxiom.getAxiomType().getName() + " [" + key + "] is not supported. Treating as non-negated.");
+
                 for (OWLSubClassOfAxiom sub :
                         ((OWLDisjointClassesAxiom) na.owlAxiom).asOWLSubClassOfAxioms()) {
+
+                    String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
 
                     // clone SP_n children — same reason as EquivalentClasses above
                     OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
-                    String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
-
                     toAdd.put(freshKey, new NormalisedAxiom(
                             na.operator, na.standpoint,
                             StandpointAxiomType.CONCEPT_INCLUSION,
-                            true, na.isNegatedInner,
+                            true, false,
                             cloned, null, na.manchester,
                             extractChildKeysFromAxiom(cloned)));
                 }
@@ -631,19 +828,24 @@ public class AnnotationProcessor {
             //   → SubClassOf(B, not(D))
             //   → SubClassOf(C, not(D))
             if (na.owlAxiom instanceof OWLDisjointUnionAxiom) {
+
+                if(na.isNegatedInner)
+                    PipelineLogger.log("WARNING: negatedInner ignored for " + na.owlAxiom.getAxiomType().getName() + " [" + key + "] is not supported. Treating as non-negated.");
+
                 OWLDisjointUnionAxiom du = (OWLDisjointUnionAxiom) na.owlAxiom;
 
                 // GROUP 1 — union part
                 for (OWLSubClassOfAxiom sub :
                         du.getOWLEquivalentClassesAxiom().asOWLSubClassOfAxioms()) {
-                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
                     String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
+
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
                     toAdd.put(freshKey, new NormalisedAxiom(
                             na.operator, na.standpoint,
                             StandpointAxiomType.CONCEPT_INCLUSION,
-                            true, na.isNegatedInner,
+                            true, false,
                             cloned, null, na.manchester,
                             extractChildKeysFromAxiom(cloned)));
                 }
@@ -651,14 +853,15 @@ public class AnnotationProcessor {
                 // GROUP 2 — disjoint part
                 for (OWLSubClassOfAxiom sub :
                         du.getOWLDisjointClassesAxiom().asOWLSubClassOfAxioms()) {
-                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
                     String freshKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
+
+                    OWLSubClassOfAxiom cloned = cloneWithFreshPlaceholders(sub, owlMap, toAdd, clonedOriginals);
 
                     toAdd.put(freshKey, new NormalisedAxiom(
                             na.operator, na.standpoint,
                             StandpointAxiomType.CONCEPT_INCLUSION,
-                            true, na.isNegatedInner,
+                            true, false,
                             cloned, null, na.manchester,
                             extractChildKeysFromAxiom(cloned)));
                 }
@@ -837,6 +1040,30 @@ public class AnnotationProcessor {
                     cloneExpr(all.getFiller(), owlMap, toAdd, clonedOriginals));
         }
 
+        // ── Cardinality restrictions — filler may contain SP_n ───────────────────
+
+        if (expr instanceof OWLObjectMinCardinality) {
+            OWLObjectMinCardinality card = (OWLObjectMinCardinality) expr;
+            return helperDf.getOWLObjectMinCardinality(
+                    card.getCardinality(),
+                    card.getProperty(),
+                    cloneExpr(card.getFiller(), owlMap, toAdd, clonedOriginals));
+        }
+        if (expr instanceof OWLObjectMaxCardinality) {
+            OWLObjectMaxCardinality card = (OWLObjectMaxCardinality) expr;
+            return helperDf.getOWLObjectMaxCardinality(
+                    card.getCardinality(),
+                    card.getProperty(),
+                    cloneExpr(card.getFiller(), owlMap, toAdd, clonedOriginals));
+        }
+        if (expr instanceof OWLObjectExactCardinality) {
+            OWLObjectExactCardinality card = (OWLObjectExactCardinality) expr;
+            return helperDf.getOWLObjectExactCardinality(
+                    card.getCardinality(),
+                    card.getProperty(),
+                    cloneExpr(card.getFiller(), owlMap, toAdd, clonedOriginals));
+        }
+
         // no SP_n inside — return expression unchanged
         return expr;
     }
@@ -953,7 +1180,7 @@ public class AnnotationProcessor {
     }
 
     // Thing ⊑ NNF(¬subClass ⊔ superClass)
-    private OWLAxiom applyRule11(OWLClassExpression subClass, OWLClassExpression superClass) {
+    private OWLAxiom normaliseSubClassOf(OWLClassExpression subClass, OWLClassExpression superClass) {
         OWLClassExpression rhs;
         if (subClass.isOWLThing()) {
             rhs = superClass.getNNF();
@@ -1106,6 +1333,7 @@ public class AnnotationProcessor {
     private void logOriginalFormulas(List<ParsedFormula> formulas,
                                      Map<String, AxiomWithLabel> axiomLabelMap) {
         PipelineLogger.log("\n=== ORIGINAL FORMULAS ===\n");
+        if (formulas.isEmpty()) PipelineLogger.log("(none)");
         for (ParsedFormula formula : formulas) {
             StringBuilder sb = new StringBuilder();
             String symbol = "box".equals(formula.operator) ? "□" : "◇";
