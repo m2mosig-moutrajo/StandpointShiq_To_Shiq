@@ -78,13 +78,11 @@ public class StandpointPanel extends JPanel {
             StandpointKnowledgeBase kb =
                     new NormalisationPipeline(ontology).run();
 
-            if (kb == null || kb.manchesterMap.isEmpty()) {
+            if (kb == null || kb.owlMap.isEmpty()) {
                 textAreaLog.append("No standpoint formulas found.\n");
-                return;
             }
 
-            textAreaLog.append("Placeholder map size: "
-                    + kb.manchesterMap.size() + "\n");
+            textAreaLog.append("Placeholder map size: " + kb.owlMap.size() + "\n");
 
             // ── Pipeline 2 — Build worlds ──────────────────────────────
             textAreaLog.append("\n==== Pipeline 2 — Precisification ====\n");

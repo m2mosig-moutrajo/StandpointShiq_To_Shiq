@@ -63,7 +63,7 @@ public class StandpointPipelineTest {
 
         OWLOntology ontology = buildOntology(axioms, formulas, sharpenings);
 
-        PipelineLogger.setLevel(PipelineLogger.Level.ON);
+        PipelineLogger.setLevel(PipelineLogger.Level.OFF);
         StandpointKnowledgeBase result = new AnnotationProcessor(ontology).run();
 
         // count root entries in owlMap

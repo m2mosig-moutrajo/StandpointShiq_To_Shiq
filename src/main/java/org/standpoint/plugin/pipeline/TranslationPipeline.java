@@ -98,11 +98,11 @@ public class TranslationPipeline {
      * Adds a rdfs:comment annotation to the translated ontology header
      * summarising what each D_n identifier represents.
      * Format:
-     *   === D_n Legend ===
+     *   === Dn Legend ===
      *   D1 = ◇_s1 [ Person ]
      *   D3 = ◇_s3 [ r some SP_2 ]
      *
-     *   === SP References ===
+     *   === SP_n Legend ===
      *   SP_2 = □_s3 [ G ]
      */
     private void addDnLegend(OWLOntology translated,
@@ -113,7 +113,7 @@ public class TranslationPipeline {
         OWLDataFactory df           = manager.getOWLDataFactory();
 
         StringBuilder legend = new StringBuilder();
-        legend.append("=== D_n Legend ===\n");
+        legend.append("=== Dn Legend ===\n");
 
         Map<String, String> dnToDescription = new LinkedHashMap<>();
 
@@ -158,7 +158,7 @@ public class TranslationPipeline {
                 if (ax == null || ax.owlTree == null) continue;
 
                 if (firstSp) {
-                    legend.append("\n=== SP References ===\n");
+                    legend.append("\n=== SP_n Legend ===\n");
                     firstSp = false;
                 }
 
