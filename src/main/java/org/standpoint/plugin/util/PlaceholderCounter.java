@@ -10,8 +10,4 @@ public class PlaceholderCounter {
         return type.prefix + counter++;
     }
 
-    public boolean hasPrefix(String name, PlaceholderType type) {
-        return name.startsWith(type.prefix);
-    }
-
 }

@@ -12,6 +12,9 @@ public enum PlaceholderType {
     public final String prefix;
 
     public static final String PLUGIN_NS = "http://standpoint.org/placeholder#";
+    public static final String STANDPOINT_AXIOM_PROP_NAME = "standpointAxiom";
+    public static final String STANDPOINT_SHARPENING_PROP_NAME = "standpointSharpening";
+    public static final String STANDPOINT_FORMULA_PROP_NAME = "standpointFormula";
 
     PlaceholderType(String prefix) {
         this.prefix = prefix;

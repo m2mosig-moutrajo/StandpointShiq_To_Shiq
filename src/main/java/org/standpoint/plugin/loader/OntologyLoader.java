@@ -1,10 +1,7 @@
 package org.standpoint.plugin.loader;
 
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.model.AxiomWithLabel;
-import org.standpoint.plugin.model.ParsedFormula;
-import org.standpoint.plugin.model.StandpointAxiomType;
-import org.standpoint.plugin.model.Sharpening;
+import org.standpoint.plugin.model.*;
 import org.standpoint.plugin.pipeline.normalisation.SharpeningParser;
 import org.standpoint.plugin.util.PipelineLogger;
 import org.w3c.dom.Document;
@@ -18,17 +15,13 @@ import java.util.*;
 
 public class OntologyLoader {
 
-    private final String STANDPOINT_AXIOM_PROP_NAME = "standpointAxiom";
-    private final String STANDPOINT_SHARPENING_PROP_NAME = "standpointSharpening";
-    private final String STANDPOINT_FORMULA_PROP_NAME = "standpointFormula";
-
     public List<Sharpening> loadSharpening(OWLOntology ontology) {
         List<Sharpening> sharpening = new ArrayList<>();
         SharpeningParser parser = new SharpeningParser();
         OWLAnnotationProperty sharpeningProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_SHARPENING_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_SHARPENING_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -52,7 +45,7 @@ public class OntologyLoader {
         OWLAnnotationProperty formulaProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_FORMULA_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_FORMULA_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -76,7 +69,7 @@ public class OntologyLoader {
         OWLAnnotationProperty labelProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_AXIOM_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_AXIOM_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 

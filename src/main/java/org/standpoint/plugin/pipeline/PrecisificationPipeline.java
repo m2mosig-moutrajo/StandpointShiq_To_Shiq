@@ -106,7 +106,7 @@ public class PrecisificationPipeline {
         // Step 5 — Compute standpoint closures
         PipelineLogger.log("\n=== STEP 5 — Standpoint closures t^K ===");
         SharpeningClosureCalculator closureCalc =
-                new SharpeningClosureCalculator(kb.sharpenings, standpoints);
+                new SharpeningClosureCalculator(kb.sharpening, standpoints);
         Map<String, Set<String>> closures = closureCalc.computeAllClosures();
         closures.forEach((s, c) ->
                 PipelineLogger.log("  " + s + "^K = " + c));
@@ -173,7 +173,7 @@ public class PrecisificationPipeline {
         PipelineLogger.log("\n✅ Precisification pipeline complete.");
         return new PrecisificationContext(
                 standpoints, diamonds, closures,
-                precSet, spToDiamondId, conceptMap);
+                precSet, spToDiamondId);
     }
     /**
      * Collects all individuals that actually appear in at least one

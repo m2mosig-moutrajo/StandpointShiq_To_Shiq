@@ -35,7 +35,7 @@ public class PrecisificationCollector {
         }
 
         // from sharpenings — lhs standpoints
-        for (Sharpening s : kb.sharpenings) {
+        for (Sharpening s : kb.sharpening) {
             standpoints.addAll(s.lhsStandpoints);
             // rhs standpoint — skip "0" (zero standpoint)
             if (s.rhsStandpoint != null && !s.rhsStandpoint.equals("0")) {

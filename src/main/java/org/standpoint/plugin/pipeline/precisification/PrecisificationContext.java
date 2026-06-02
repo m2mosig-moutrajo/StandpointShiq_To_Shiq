@@ -1,6 +1,5 @@
 package org.standpoint.plugin.pipeline.precisification;
 
-import org.standpoint.plugin.translation.ConceptMap;
 import org.standpoint.plugin.translation.DiamondExpression;
 
 import java.util.Map;
@@ -17,21 +16,18 @@ public class PrecisificationContext {
     public final Map<String, Set<String>> closures;
     public final PrecisificationSet       precSet;
     public final Map<String, String>      spToDiamondId;
-    public final ConceptMap               conceptMap;
 
     public PrecisificationContext(
             Set<String>              standpoints,
             Set<DiamondExpression>      diamonds,
             Map<String, Set<String>> closures,
             PrecisificationSet       precSet,
-            Map<String, String>      spToDiamondId,
-            ConceptMap               conceptMap) {
+            Map<String, String>      spToDiamondId) {
 
         this.standpoints   = standpoints;
         this.diamonds      = diamonds;
         this.closures      = closures;
         this.precSet       = precSet;
         this.spToDiamondId = spToDiamondId;
-        this.conceptMap    = conceptMap;
     }
 }

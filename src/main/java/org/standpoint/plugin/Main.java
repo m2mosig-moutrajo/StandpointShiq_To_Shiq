@@ -1,9 +1,7 @@
 package org.standpoint.plugin;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.manchestersyntax.renderer.ManchesterOWLSyntaxOWLObjectRendererImpl;
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.pipeline.*;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;

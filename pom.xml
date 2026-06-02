@@ -25,10 +25,18 @@
     <dependency>
       <groupId>net.sourceforge.owlapi</groupId>
       <artifactId>owlapi-distribution</artifactId>
-      <version>4.5.9</version>
-<!--      <scope>provided</scope>-->
-      <scope>compile</scope>
+      <version>4.5.29</version>
+      <scope>provided</scope>
     </dependency>
+
+    <!-- Force Guava to the version Protégé ships with -->
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>18.0</version>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-nop</artifactId>

@@ -40,28 +40,12 @@ public class ConceptMap {
         spToId.put(spKey, id);
         return id;
     }
-
-    /**
-     * Builds from a set of DiamondSubterms — assigns diamondId on each.
-     * Called for DIAMOND entries to set up precisification naming.
-     */
-    public void build(Set<DiamondExpression> diamonds) {
-        for (DiamondExpression d : diamonds) {
-            String id = addEntry(d.placeholderKey, d.concept);
-            d.diamondId = id;
-        }
-    }
-
     /**
      * Returns the D_n id for a given SP_n key.
      * Returns null if not found.
      */
     public String getIdForSp(String spKey) {
         return spToId.get(spKey);
-    }
-
-    public int size() {
-        return conceptToId.size();
     }
 
     @Override
