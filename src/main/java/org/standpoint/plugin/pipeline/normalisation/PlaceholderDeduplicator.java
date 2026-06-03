@@ -4,7 +4,7 @@ import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.model.EntrySignature;
 import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.*;
 

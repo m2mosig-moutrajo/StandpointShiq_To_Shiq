@@ -1,6 +1,6 @@
 package org.standpoint.plugin.pipeline.precisification;
 
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.Map;
 import java.util.Set;

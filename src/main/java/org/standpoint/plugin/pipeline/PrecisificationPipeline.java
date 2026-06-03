@@ -10,7 +10,8 @@ import org.standpoint.plugin.pipeline.precisification.PrecisificationCollector;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
 import org.standpoint.plugin.pipeline.precisification.SharpeningClosureCalculator;
-import org.standpoint.plugin.translation.*;
+import org.standpoint.plugin.pipeline.translation.ConceptMap;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;

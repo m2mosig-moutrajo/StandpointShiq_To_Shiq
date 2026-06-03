@@ -1,4 +1,4 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.pipeline.translation;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;

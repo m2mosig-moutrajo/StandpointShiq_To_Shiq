@@ -5,7 +5,9 @@ import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;
-import org.standpoint.plugin.translation.*;
+import org.standpoint.plugin.pipeline.translation.AuxiliaryNameFactory;
+import org.standpoint.plugin.pipeline.translation.ConceptTranslator;
+import org.standpoint.plugin.pipeline.translation.StandpointTranslator;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.io.File;
