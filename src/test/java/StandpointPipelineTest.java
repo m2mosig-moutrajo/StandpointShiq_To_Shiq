@@ -49,8 +49,8 @@ public class StandpointPipelineTest {
      * Generates the complete KB once before any test runs using a temporary
      * instance. All four tests read from these static fields.
      *
-     * Sharpening mix (3, 3, 3): exercises Rules (8) and (9) in Pipeline 1,
-     * and provides the basis for the adaptive consistency assertion in test 4.
+     * Sharpening mix (3 NORMAL + 1 ZERO + 1 NEGATED): exercises Rules (8) and (9)
+     * in Pipeline 1. ZERO/NEGATED entries guarantee P4 Mode B inconsistency.
      */
     @BeforeClass
     public static void setupSharedData() {
@@ -66,7 +66,7 @@ public class StandpointPipelineTest {
 
         sharedFormulas    = gen.generateFormulas(sharedAxioms, 2);
         sharedStandpoints = gen.extractStandpoints(sharedFormulas);
-        sharedSharpening = gen.generateSharpening(sharedStandpoints, 5);
+        sharedSharpening  = gen.generateSharpening(sharedStandpoints, 3, 1, 1);
     }
 
     // ── Instance counters — used only by the @BeforeClass generator ──────────
@@ -88,37 +88,13 @@ public class StandpointPipelineTest {
     // =========================================================================
 
     /**
-     * Verifies that Pipeline 1 produces the correct number of root owlMap
-     * entries and sharpening statements, predicted analytically from the
-     * normalisation rules applied to the shared KB.
+     * P1: verifies root owlMap count and sharpening count on the shared KB.
+     * Delegates to runPipelineAssertions — all assertion logic lives there.
      */
     @Test
     public void test01NormalisationPipeline() throws Exception {
-        PipelineLogger.setLevel(PipelineLogger.Level.ON);
-
-        ExpectedNormalisationCounts expected =
-                computeExpectedNormalisation(sharedAxioms, sharedFormulas, sharedSharpening);
-
-        OWLOntology ontology = buildOntology(sharedAxioms, sharedFormulas, sharedSharpening);
-        StandpointKnowledgeBase kb = new AnnotationProcessor(ontology).run();
-
-        long actualRoots = kb.owlMap.values().stream()
-                .filter(na -> na.isRoot).count();
-
-        System.out.println("\n=== PIPELINE 1 — NORMALISATION TEST ===");
-        System.out.printf("Root axioms:  expected=%-4d actual=%d%n",
-                expected.axiomCount, actualRoots);
-        System.out.printf("Sharpenings:  expected=%-4d actual=%d%n",
-                expected.sharpeningCount, kb.sharpening.size());
-        System.out.printf("Fresh FC:     expected=%-4d actual=%d%n",
-                expected.freshConceptCount, countFreshConcepts(kb));
-        System.out.printf("Fresh FR:     expected=%-4d actual=%d%n",
-                expected.freshRoleCount, countFreshRoles(kb));
-
-        Assert.assertEquals("Axiom count mismatch",
-                expected.axiomCount, (int) actualRoots);
-        Assert.assertEquals("Sharpening count mismatch",
-                expected.sharpeningCount, kb.sharpening.size());
+        PipelineLogger.setLevel(PipelineLogger.Level.OFF);
+        runPipelineAssertions(sharedAxioms, sharedFormulas, sharedSharpening);
     }
 
     // =========================================================================
@@ -126,34 +102,13 @@ public class StandpointPipelineTest {
     // =========================================================================
 
     /**
-     * Verifies that Pipeline 2 builds the correct precisification set:
-     *
-     *   |Π_K| = S + 2·D + I·D
-     *
-     * S, D, I are read from ctx and kb — nothing is hardcoded.
+     * P2: verifies |Π_K| = S + 2·D + I·D on the shared KB.
+     * Delegates to runPipelineAssertions — all assertion logic lives there.
      */
     @Test
     public void test02PrecisificationPipeline() throws Exception {
         PipelineLogger.setLevel(PipelineLogger.Level.OFF);
-
-        OWLOntology ontology = buildOntology(sharedAxioms, sharedFormulas, sharedSharpening);
-        StandpointKnowledgeBase kb  = new NormalisationPipeline(ontology).run();
-        PrecisificationContext  ctx = new PrecisificationPipeline(kb).run();
-
-        int S = ctx.standpoints.size();
-        int D = ctx.diamonds.size();
-        int I = collectIndividualCount(kb);
-        int expectedPrecSet = S + 2 * D + I * D;
-
-        System.out.println("\n=== PIPELINE 2 — PRECISIFICATION TEST ===");
-        System.out.printf("Standpoints S:        %d%n", S);
-        System.out.printf("Diamond subterms D:   %d%n", D);
-        System.out.printf("Individuals I:        %d%n", I);
-        System.out.printf("|Π_K|: expected=%-4d actual=%d%n",
-                expectedPrecSet, ctx.precSet.size());
-
-        Assert.assertEquals("Precisification set size mismatch",
-                expectedPrecSet, ctx.precSet.size());
+        runPipelineAssertions(sharedAxioms, sharedFormulas, sharedSharpening);
     }
 
     // =========================================================================
@@ -161,31 +116,14 @@ public class StandpointPipelineTest {
     // =========================================================================
 
     /**
-     * Verifies that Pipeline 3 produces the correct number of logical axioms:
-     *
-     *   total = Σ (for every na in kb.owlMap) |σ(na.standpoint)|
-     *
-     * Non-root entries → AUX definitions (Type 1).
-     * Root entries     → translated axioms (Types 2–6).
+     * P3: verifies translated logical axiom count = Σ |σ(na.standpoint)|
+     * over every owlMap entry on the shared KB.
+     * Delegates to runPipelineAssertions — all assertion logic lives there.
      */
     @Test
     public void test03TranslationPipeline() throws Exception {
         PipelineLogger.setLevel(PipelineLogger.Level.OFF);
-
-        OWLOntology ontology = buildOntology(sharedAxioms, sharedFormulas, sharedSharpening);
-        StandpointKnowledgeBase kb  = new NormalisationPipeline(ontology).run();
-        PrecisificationContext  ctx = new PrecisificationPipeline(kb).run();
-        OWLOntology translated      = new TranslationPipeline(kb, ctx, null).run();
-
-        int expectedTotal = computeExpectedTranslationAxiomCount(kb, ctx);
-        int actualAxioms  = translated.getLogicalAxiomCount();
-
-        System.out.println("\n=== PIPELINE 3 — TRANSLATION TEST ===");
-        System.out.printf("Expected total axioms: %-4d actual=%d%n",
-                expectedTotal, actualAxioms);
-
-        Assert.assertEquals("Translated axiom count mismatch",
-                expectedTotal, actualAxioms);
+        runPipelineAssertions(sharedAxioms, sharedFormulas, sharedSharpening);
     }
 
 // =========================================================================
@@ -193,57 +131,23 @@ public class StandpointPipelineTest {
 // =========================================================================
 
     /**
-     * Tests semantic consistency of the translated ontology using HermiT.
+     * P4: HermiT consistency check on the shared KB.
      *
-     * Both modes use the same shared axioms and formulas with NORMAL
-     * sharpenings only (guaranteed consistent base).
+     * The shared KB contains ZERO and NEGATED sharpenings, so even Mode A
+     * (no extra contradiction injected) is expected to be inconsistent here.
+     * Mode B adds injectContradiction on top, which is also inconsistent.
      *
-     * Mode A (consistent): no contradiction — normal sharpenings only.
-     *   Fresh concept/role names, no conflicting constraints.
+     * Both modes assert inconsistent because:
+     *   - ZERO sharpening (s ⪯ 0): Rule (9) → □_s[⊤ ⊑ FC] + □_*[FC ⊑ ⊥]
+     *     → after σ fix (σ(*) = Π_K) → ⊤ ⊑ ⊥ guaranteed.
+     *   - NEGATED sharpening ¬(s ⪯ t): Rule (8) → internal ZERO → same result.
      *
-     * Mode B (inconsistent): same KB + two unlabelled contradiction axioms:
-     *   ContraC ⊑ ⊥           (unlabelled → wrapped as □_*[ContraC ⊑ ⊥])
-     *   ContraC(contra_ind)    (unlabelled → wrapped as □_*[ContraC(contra_ind)])
-     *
-     * After translation with the corrected σ:
-     *   σ(*) = Π_K  (all worlds, since * ∈ t^K for every standpoint t)
-     *   → ContraC_π ⊑ ⊥          for every π ∈ Π_K
-     *   → ContraC_π(contra_ind)   for every π ∈ Π_K
-     *   → contra_ind ∈ ContraC_π = ∅  → guaranteed inconsistent every run.
+     * Delegates to runPipelineAssertions — all assertion logic lives there.
      */
     @Test
     public void test04ConsistencyWithHermit() throws Exception {
-        PipelineLogger.setLevel(PipelineLogger.Level.ON);
-
-        System.out.println("\n=== PIPELINE 4 — HERMIT CONSISTENCY TEST ===");
-        // ── Mode A: consistent ────────────────────────────────────────────────
-        OWLOntology ontologyA        = buildOntology(sharedAxioms, sharedFormulas, sharedSharpening);
-        StandpointKnowledgeBase kb1  = new NormalisationPipeline(ontologyA).run();
-        PrecisificationContext  ctx1 = new PrecisificationPipeline(kb1).run();
-        OWLOntology translated1      = new TranslationPipeline(kb1, ctx1, null).run();
-
-        OWLReasoner reasoner1 = new Reasoner(new Configuration(), translated1);
-        boolean modeAResult   = reasoner1.isConsistent();
-        reasoner1.dispose();
-
-        System.out.printf("Mode A (no contradiction):   consistent = %b  (expected: true)%n", modeAResult);
-        Assert.assertTrue("Mode A: expected consistent KB", modeAResult);
-
-        // ── Mode B: direct contradiction via □_*[ContraC ⊑ ⊥] + □_*[ContraC(ind)] ──
-        OWLOntology ontologyB        = buildOntology(sharedAxioms, sharedFormulas, sharedSharpening);
-        injectContradiction(ontologyB);
-
-        StandpointKnowledgeBase kb2  = new NormalisationPipeline(ontologyB).run();
-        PrecisificationContext  ctx2 = new PrecisificationPipeline(kb2).run();
-        OWLOntology translated2      = new TranslationPipeline(kb2, ctx2, null).run();
-
-        OWLReasoner reasoner2 = new Reasoner(new Configuration(), translated2);
-        boolean modeBResult   = reasoner2.isConsistent();
-        reasoner2.dispose();
-
-        System.out.printf("Mode B (contradiction injected): consistent = %b  (expected: false)%n",
-                modeBResult);
-        Assert.assertFalse("Mode B: expected inconsistent KB", modeBResult);
+        PipelineLogger.setLevel(PipelineLogger.Level.OFF);
+        runPipelineAssertions(sharedAxioms, sharedFormulas, sharedSharpening);
     }
 
     /**
@@ -271,6 +175,174 @@ public class StandpointPipelineTest {
                 df.getOWLSubClassOfAxiom(contraC, df.getOWLNothing()));
         manager.addAxiom(ontology,
                 df.getOWLClassAssertionAxiom(contraC, contraInd));
+    }
+
+    // =========================================================================
+    // Extra coverage — parameterized via runTest
+    // =========================================================================
+
+    /**
+     * Smoke test on a minimal KB: 1 of each axiom kind, 1 formula,
+     * 2 NORMAL sharpenings — no ZERO or NEGATED, so Mode A is consistent.
+     */
+    @Test
+    public void testMinimalKB() throws Exception {
+        PipelineLogger.setLevel(PipelineLogger.Level.ON);
+        runTest(1, 1, 1, 1, 1, 1, 2, 2, 0, 0);
+    }
+
+    /**
+     * Stress test on a larger KB: 5 of each axiom kind, 4 formulas,
+     * 4 NORMAL + 1 ZERO + 1 NEGATED sharpenings.
+     * ZERO/NEGATED guarantee inconsistency via Rules (9) and (8).
+     */
+    @Test
+    public void testLargerKB() throws Exception {
+        PipelineLogger.setLevel(PipelineLogger.Level.OFF);
+        runTest(5, 5, 5, 5, 5, 5, 4, 4, 10, 10);
+    }
+
+    // =========================================================================
+    // Flexible full-pipeline runner
+    // =========================================================================
+
+    /**
+     * Generates a fresh, independent KB from explicit parameters, resets all
+     * instance counters so the run is isolated from shared data, then delegates
+     * to {@link #runPipelineAssertions}.
+     *
+     * @param numCI       concept inclusions (SubClassOf)
+     * @param numCA       concept assertions (Type:)
+     * @param numRI       role inclusions (SubPropertyOf)
+     * @param numRA       role assertions (Individual: Facts:)
+     * @param numRT       transitivity axioms
+     * @param numNested   nested modal concept inclusions
+     * @param numFormulas standpoint formulas
+     * @param numNormal   NORMAL sharpenings — no forced inconsistency
+     * @param numZero     ZERO sharpenings — Rule (9) → ⊤ ⊑ ⊥
+     * @param numNegated  NEGATED sharpenings — Rule (8) → internal zero → ⊤ ⊑ ⊥
+     */
+    private void runTest(
+            int numCI, int numCA, int numRI, int numRA, int numRT,
+            int numNested, int numFormulas,
+            int numNormal, int numZero, int numNegated) throws Exception {
+
+        // Reset counters — fully independent of shared data
+        conceptCounter = roleCounter = indCounter
+                = standpointCounter = axiomIdCounter = 0;
+
+        List<GeneratedAxiom> axioms = new ArrayList<>();
+        for (int i = 0; i < numCI;     i++) axioms.add(generateCI());
+        for (int i = 0; i < numCA;     i++) axioms.add(generateCA());
+        for (int i = 0; i < numRI;     i++) axioms.add(generateRI());
+        for (int i = 0; i < numRA;     i++) axioms.add(generateRA());
+        for (int i = 0; i < numRT;     i++) axioms.add(generateRT());
+        for (int i = 0; i < numNested; i++) axioms.add(generateNestedCI());
+
+        List<GeneratedFormula>    formulas    = generateFormulas(axioms, numFormulas);
+        List<String>              standpoints = extractStandpoints(formulas);
+        List<GeneratedSharpening> sharpening  = generateSharpening(standpoints, numNormal, numZero, numNegated);
+
+        runPipelineAssertions(axioms, formulas, sharpening);
+    }
+
+    /**
+     * Runs all four pipeline assertions (P1, P2, P3, P4 Modes A+B) on the
+     * given KB data. Shared by both {@link #runTest} and the named {@code @Test}
+     * methods — keeping assertion logic here ensures both paths test identically.
+     *
+     * P1 uses AnnotationProcessor directly (Pipeline 1 entry point).
+     * P2 + P3 share one normalisation chain; P4 Mode A reuses P3's translated
+     * ontology. P4 Mode B builds a separate ontology with injectContradiction.
+     *
+     * If sharpening contains ZERO or NEGATED entries, the KB is already
+     * inconsistent before Mode B injection — both Mode A and Mode B will
+     * assert false, which is correct behaviour.
+     */
+    private void runPipelineAssertions(
+            List<GeneratedAxiom>      axioms,
+            List<GeneratedFormula>    formulas,
+            List<GeneratedSharpening> sharpening) throws Exception {
+
+        boolean expectInconsistent = sharpening.stream()
+                .anyMatch(s -> s.kind == SharpeningKind.ZERO
+                        || s.kind == SharpeningKind.NEGATED);
+
+        // ── P1 — Normalisation ────────────────────────────────────────────────
+        ExpectedNormalisationCounts expected =
+                computeExpectedNormalisation(axioms, formulas, sharpening);
+        OWLOntology ont1 = buildOntology(axioms, formulas, sharpening);
+        StandpointKnowledgeBase kb1 = new AnnotationProcessor(ont1).run();
+        long actualRoots = kb1.owlMap.values().stream()
+                .filter(na -> na.isRoot).count();
+
+        System.out.println("\n=== PIPELINE 1 — NORMALISATION ===");
+        System.out.printf("Root axioms:  expected=%-4d actual=%d%n",
+                expected.axiomCount, actualRoots);
+        System.out.printf("Sharpenings:  expected=%-4d actual=%d%n",
+                expected.sharpeningCount, kb1.sharpening.size());
+        System.out.printf("Fresh FC:     expected=%-4d actual=%d%n",
+                expected.freshConceptCount, countFreshConcepts(kb1));
+        System.out.printf("Fresh FR:     expected=%-4d actual=%d%n",
+                expected.freshRoleCount, countFreshRoles(kb1));
+        Assert.assertEquals("P1 axiom count",
+                expected.axiomCount, (int) actualRoots);
+        Assert.assertEquals("P1 sharpening count",
+                expected.sharpeningCount, kb1.sharpening.size());
+
+        // ── P2 + P3 — share the same normalisation run ───────────────────────
+        OWLOntology ont2 = buildOntology(axioms, formulas, sharpening);
+        StandpointKnowledgeBase kb2        = new NormalisationPipeline(ont2).run();
+        PrecisificationContext  ctx        = new PrecisificationPipeline(kb2).run();
+        OWLOntology             translated = new TranslationPipeline(kb2, ctx, null).run();
+
+        // ── P2 — Precisification ──────────────────────────────────────────────
+        int S = ctx.standpoints.size();
+        int D = ctx.diamonds.size();
+        int I = collectIndividualCount(kb2);
+        int expectedPrec = S + 2 * D + I * D;
+
+        System.out.println("\n=== PIPELINE 2 — PRECISIFICATION ===");
+        System.out.printf("S=%-3d D=%-3d I=%-3d  |Π_K|: expected=%-4d actual=%d%n",
+                S, D, I, expectedPrec, ctx.precSet.size());
+        Assert.assertEquals("P2 precisification size", expectedPrec, ctx.precSet.size());
+
+        // ── P3 — Translation ──────────────────────────────────────────────────
+        int expectedAxioms = computeExpectedTranslationAxiomCount(kb2, ctx);
+        int actualAxioms   = translated.getLogicalAxiomCount();
+
+        System.out.println("\n=== PIPELINE 3 — TRANSLATION ===");
+        System.out.printf("Expected=%-4d actual=%d%n", expectedAxioms, actualAxioms);
+        Assert.assertEquals("P3 axiom count", expectedAxioms, actualAxioms);
+
+        // ── P4 Mode A ─────────────────────────────────────────────────────────
+        // If ZERO/NEGATED sharpenings are present, already inconsistent.
+        OWLReasoner r1 = new Reasoner(new Configuration(), translated);
+        boolean modeA  = r1.isConsistent();
+        r1.dispose();
+
+        System.out.println("\n=== PIPELINE 4 — HERMIT ===");
+        System.out.printf("ZERO/NEGATED present: %b%n", expectInconsistent);
+        System.out.printf("Mode A: consistent = %b  (expected: %b)%n",
+                modeA, !expectInconsistent);
+        if (expectInconsistent)
+            Assert.assertFalse("P4 Mode A: expected inconsistent (ZERO/NEGATED present)", modeA);
+        else
+            Assert.assertTrue("P4 Mode A: expected consistent", modeA);
+
+        // ── P4 Mode B — contradiction injected ───────────────────────────────
+        OWLOntology ont3 = buildOntology(axioms, formulas, sharpening);
+        injectContradiction(ont3);
+        StandpointKnowledgeBase kb3  = new NormalisationPipeline(ont3).run();
+        PrecisificationContext  ctx3 = new PrecisificationPipeline(kb3).run();
+        OWLOntology translated3      = new TranslationPipeline(kb3, ctx3, null).run();
+
+        OWLReasoner r2 = new Reasoner(new Configuration(), translated3);
+        boolean modeB  = r2.isConsistent();
+        r2.dispose();
+
+        System.out.printf("Mode B: consistent = %b  (expected: false)%n", modeB);
+        Assert.assertFalse("P4 Mode B: expected inconsistent", modeB);
     }
 
     // =========================================================================
@@ -521,35 +593,63 @@ public class StandpointPipelineTest {
     }
 
     /**
-     * Generates NORMAL sharpenings consuming each standpoint exactly once
-     * (as either LHS or RHS). When the original pool is exhausted, fresh
-     * standpoints (FS_1, FS_2, ...) are generated in pairs to fill remaining
-     * sharpenings.
+     * Generates a mix of NORMAL, ZERO, and NEGATED sharpenings from a shared pool.
      *
-     * With standpoints=[s1,s2], count=3:
-     *   Sharpening 1: s1 ⪯ s2   → pool empty
-     *   Sharpening 2: FS_1 ⪯ FS_2  → fresh pair
-     *   Sharpening 3: FS_3 ⪯ FS_4  → fresh pair
+     * NORMAL (s ⪯ t): consumes two standpoints. Consistent — contributes only
+     * +1 to sharpeningCount and affects closures.
      *
+     * ZERO (s ⪯ 0): consumes one standpoint as LHS; RHS is the zero element.
+     * Rule (9) produces □_s[⊤ ⊑ FC] + □_*[FC ⊑ ⊥]. After the σ fix
+     * (σ(*) = Π_K), this translates to ⊤ ⊑ ⊥ — guaranteed inconsistency.
+     *
+     * NEGATED (¬(s ⪯ t)): consumes two standpoints. Rule (8) internally
+     * expands to a ZERO sharpening, producing the same ⊤ ⊑ ⊥ result.
+     *
+     * All three kinds consume from the same pool in order: NORMAL first,
+     * then ZERO, then NEGATED. When the pool is exhausted, fresh names
+     * FS_1, FS_2, … are added in pairs (or singles for ZERO).
      * Every standpoint name appears exactly once across all sharpenings.
+     *
+     * @param standpoints original standpoints seeded into the pool
+     * @param numNormal   number of NORMAL sharpenings
+     * @param numZero     number of ZERO sharpenings
+     * @param numNegated  number of NEGATED sharpenings
      */
     private List<GeneratedSharpening> generateSharpening(
-            List<String> standpoints, int count) {
+            List<String> standpoints, int numNormal, int numZero, int numNegated) {
         List<GeneratedSharpening> result = new ArrayList<>();
         List<String> available = new ArrayList<>(standpoints);
         Collections.shuffle(available, new Random());
         int freshCounter = 0;
 
-        for (int i = 0; i < count; i++) {
-            // Top up to at least 2 using fresh standpoints if pool is exhausted
-            while (available.size() < 2)
-                available.add("FS_" + (++freshCounter));
-
+        // ── NORMAL: s ⪯ t ─────────────────────────────────────────────────────
+        for (int i = 0; i < numNormal; i++) {
+            while (available.size() < 2) available.add("FS_" + (++freshCounter));
             String lhs = available.remove(0);
             String rhs = available.remove(0);
             result.add(new GeneratedSharpening(
                     Collections.singletonList(lhs), rhs, SharpeningKind.NORMAL));
         }
+
+        // ── ZERO: s ⪯ 0 ───────────────────────────────────────────────────────
+        // Rule (9): □_s[⊤ ⊑ FC] + □_*[FC ⊑ ⊥] → σ(*) = Π_K → ⊤ ⊑ ⊥
+        for (int i = 0; i < numZero; i++) {
+            while (available.size() < 1) available.add("FS_" + (++freshCounter));
+            String lhs = available.remove(0);
+            result.add(new GeneratedSharpening(
+                    Collections.singletonList(lhs), "0", SharpeningKind.ZERO));
+        }
+
+        // ── NEGATED: ¬(s ⪯ t) ────────────────────────────────────────────────
+        // Rule (8) expands to internal ZERO → same ⊤ ⊑ ⊥ result
+        for (int i = 0; i < numNegated; i++) {
+            while (available.size() < 2) available.add("FS_" + (++freshCounter));
+            String lhs = available.remove(0);
+            String rhs = available.remove(0);
+            result.add(new GeneratedSharpening(
+                    Collections.singletonList(lhs), rhs, SharpeningKind.NEGATED));
+        }
+
         return result;
     }
     // ── Expected count computation (Pipeline 1) ───────────────────────────────
