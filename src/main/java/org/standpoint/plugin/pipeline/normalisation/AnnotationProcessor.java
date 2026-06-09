@@ -1336,7 +1336,7 @@ public class AnnotationProcessor {
         if (formulas.isEmpty()) PipelineLogger.log("(none)");
         for (ParsedFormula formula : formulas) {
             StringBuilder sb = new StringBuilder();
-            String symbol = "box".equals(formula.operator) ? "□" : "◇";
+            String symbol = Operator.BOX.toString().toLowerCase().equals(formula.operator) ? "□" : "◇";
             sb.append(symbol).append("_").append(formula.standpoint).append("[");
             for (int i = 0; i < formula.literals.size(); i++) {
                 ParsedLiteral lit = formula.literals.get(i);
@@ -1445,7 +1445,7 @@ public class AnnotationProcessor {
         String standpoint = node.getAttributes().getNamedItem("standpoint").getNodeValue();
         Node negated = node.getAttributes().getNamedItem("negated");
         Node negatedInner = node.getAttributes().getNamedItem("negatedInner");
-        String symbol = "box".equals(op) ? "□" : "◇";
+        String symbol = Operator.BOX.toString().toLowerCase().equals(op) ? "□" : "◇";
 
         StringBuilder inner = new StringBuilder();
         NodeList children = node.getChildNodes();

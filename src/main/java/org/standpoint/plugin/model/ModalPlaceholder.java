@@ -1,5 +1,7 @@
 package org.standpoint.plugin.model;
 
+import org.semanticweb.owlapi.model.OWLAxiom;
+
 public class ModalPlaceholder {
 
     public Operator operator;
@@ -8,6 +10,7 @@ public class ModalPlaceholder {
     public boolean isRoot         = false;
     public boolean isNegatedInner = false;
     public StandpointAxiomType standpointAxiomType = StandpointAxiomType.NONE;
+    public final OWLAxiom originalOwlAxiom = null;
 
     public ModalPlaceholder(Operator operator, String standpoint, String manchesterExpression) {
         this.operator   = operator;
@@ -17,7 +20,7 @@ public class ModalPlaceholder {
 
     @Override
     public String toString() {
-        return "<modal op=\"" + (operator == Operator.BOX ? "box" : "diamond")
+        return "<modal op=\"" + (operator.toString().toLowerCase())
                 + "\" standpoint=\"" + standpoint + "\""
                 + (isNegatedInner ? " negatedInner=\"true\"" : "")
                 + ">" + manchester + "</modal>"

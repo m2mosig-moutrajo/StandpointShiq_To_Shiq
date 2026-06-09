@@ -93,15 +93,13 @@ public class ModalExpressionDecomposer {
         String manchesterExpression;
         ModalPlaceholder entry;
 
+        operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
         if (isNegated && isNegatedInner) {
             // ¬□_s[¬X] → ◇_s[X],  ¬◇_s[¬X] → □_s[X]
-            operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
             manchesterExpression = processedInner;
             entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
 
         } else if (isNegated) {
-            operator = "box".equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
-
             // use type — NONE means concept-level, anything else is axiom-level
             boolean isAxiomContent = axiomType != StandpointAxiomType.NONE;
 
@@ -116,13 +114,11 @@ public class ModalExpressionDecomposer {
             }
 
         } else if (isNegatedInner) {
-            operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
             entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             entry.isNegatedInner = true;
 
         } else {
-            operator = "box".equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
             manchesterExpression = processedInner;
             entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
         }
