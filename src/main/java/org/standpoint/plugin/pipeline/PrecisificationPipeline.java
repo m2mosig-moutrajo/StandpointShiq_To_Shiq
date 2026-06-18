@@ -174,7 +174,7 @@ public class PrecisificationPipeline {
         PipelineLogger.log("\n✅ Precisification pipeline complete.");
         return new PrecisificationContext(
                 standpoints, diamonds, closures,
-                precSet, spToDiamondId);
+                precSet, spToDiamondId, kb);
     }
     /**
      * Collects all individuals that actually appear in at least one

@@ -1,5 +1,6 @@
 package org.standpoint.plugin.normaliser;
 
+import org.semanticweb.owlapi.model.OWLAxiom;
 import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.ModalPlaceholder;
 import org.standpoint.plugin.model.PlaceholderType;
@@ -23,7 +24,7 @@ public class ModalExpressionDecomposer {
 
     public Map<String, ModalPlaceholder> getMap() { return placeholderMap; }
 
-    public String substitute(String standpointLabelXml, StandpointAxiomType rootAxiomType) {
+    public String substitute(String standpointLabelXml, StandpointAxiomType rootAxiomType, OWLAxiom originalOwlAxiom) {
         try {
             standpointLabelXml = standpointLabelXml.trim();
             String wrappedXml = "<root>" + standpointLabelXml + "</root>";
@@ -34,7 +35,7 @@ public class ModalExpressionDecomposer {
 
             Node rootNode = doc.getDocumentElement();
             // pass rootAxiomType for root node — nested modals are always NONE
-            String rootPlaceholderKey = processNode(rootNode.getFirstChild(), rootAxiomType);
+            String rootPlaceholderKey = processNode(rootNode.getFirstChild(), rootAxiomType, originalOwlAxiom);
 
             ModalPlaceholder rootEntry = placeholderMap.get(rootPlaceholderKey);
             if (rootEntry != null) rootEntry.isRoot = true;
@@ -47,7 +48,7 @@ public class ModalExpressionDecomposer {
         }
     }
 
-    private String processNode(Node node, StandpointAxiomType axiomType) {
+    private String processNode(Node node, StandpointAxiomType axiomType, OWLAxiom originalOwlAxiom) {
         if (node == null) return "";
 
         if (node.getNodeType() == Node.TEXT_NODE) {
@@ -76,7 +77,7 @@ public class ModalExpressionDecomposer {
             } else if (child.getNodeType() == Node.ELEMENT_NODE
                     && child.getNodeName().equals("modal")) {
                 // nested modals are always NONE — they are concept-level sub-expressions
-                innerManchester.append(processNode(child, StandpointAxiomType.NONE));
+                innerManchester.append(processNode(child, StandpointAxiomType.NONE, null));
             }
         }
 
@@ -90,42 +91,46 @@ public class ModalExpressionDecomposer {
         }
 
         Operator operator;
-        String manchesterExpression;
         ModalPlaceholder entry;
-
-        operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
         if (isNegated && isNegatedInner) {
             // ¬□_s[¬X] → ◇_s[X],  ¬◇_s[¬X] → □_s[X]
-            manchesterExpression = processedInner;
-            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+            operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
+            entry = buildPlaceholder(operator, standpoint, processedInner, originalOwlAxiom);
 
         } else if (isNegated) {
+            operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.DIAMOND : Operator.BOX;
             // use type — NONE means concept-level, anything else is axiom-level
             boolean isAxiomContent = axiomType != StandpointAxiomType.NONE;
 
             if (isAxiomContent) {
-                manchesterExpression = processedInner;
-                entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+                entry = buildPlaceholder(operator, standpoint, processedInner, originalOwlAxiom);
                 entry.isNegatedInner = true;
             } else {
                 // ¬□_s[C] = ◇_s[¬C],  ¬◇_s[C] = □_s[¬C]
-                manchesterExpression = "not (" + processedInner + ")";
+                String manchesterExpression = "not (" + processedInner + ")";
                 entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
             }
 
         } else if (isNegatedInner) {
-            manchesterExpression = processedInner;
-            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+            operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
+            entry = buildPlaceholder(operator, standpoint, processedInner, originalOwlAxiom);
             entry.isNegatedInner = true;
 
         } else {
-            manchesterExpression = processedInner;
-            entry = new ModalPlaceholder(operator, standpoint, manchesterExpression);
+            operator = Operator.BOX.toString().toLowerCase().equals(modalOp) ? Operator.BOX : Operator.DIAMOND;
+            entry = buildPlaceholder(operator, standpoint, processedInner, originalOwlAxiom);
         }
 
         String placeholderKey = placeholderCounter.generate(PlaceholderType.MODAL_PLACEHOLDER);
         placeholderMap.put(placeholderKey, entry);
         return placeholderKey;
+    }
+
+    private ModalPlaceholder buildPlaceholder(Operator operator, String standpoint, String manchesterExpression, OWLAxiom originalOwlAxiom) {
+        if ((manchesterExpression == null || manchesterExpression.isEmpty()) && originalOwlAxiom != null) {
+                return new ModalPlaceholder(operator, standpoint, originalOwlAxiom);
+        }
+        return new ModalPlaceholder(operator, standpoint, manchesterExpression);
     }
 
     private void validateParentBalance(String expr) {

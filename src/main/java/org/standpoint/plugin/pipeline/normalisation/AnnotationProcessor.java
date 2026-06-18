@@ -785,7 +785,7 @@ public class AnnotationProcessor {
                 continue;
             }
 
-            // ── DisjointClasses → n*(n-1)/2 SubClassOf ───────────────────────────
+            // ── DisjointClasses → SubClassOf ───────────────────────────
             // DisjointClasses(A, B, C)  →  SubClassOf(A, not(B))
             //                               SubClassOf(A, not(C))
             //                               SubClassOf(B, not(C))
@@ -1144,7 +1144,7 @@ public class AnnotationProcessor {
             PipelineLogger.log("Processing: " + standpointLabel);
 
             ModalExpressionDecomposer decomposer = new ModalExpressionDecomposer(placeholderCounter);
-            String rootKey = decomposer.substitute(standpointLabel, axiomWithLabel.standpointAxiomType);
+            String rootKey = decomposer.substitute(standpointLabel, axiomWithLabel.standpointAxiomType, axiomWithLabel.axiom);
             Map<String, ModalPlaceholder> subMap = decomposer.getMap();
 
             // Register SP_n keys in helper ontology
@@ -1251,11 +1251,17 @@ public class AnnotationProcessor {
                     null, owlTree, mp.manchester, extractChildKeysFromExpr(owlTree));
         }
 
-        // TODO: to check
-        // Root axiom — parse as full OWL axiom
-//        String axiomString = mp.manchester
-//                .replace("owl:Nothing", "Nothing")
-//                .replace("owl:Thing", "Thing");
+        // Root axiom — empty annotation: use the OWL axiom directly, no parsing needed
+        if (!mp.hasManchester()) {
+            OWLAxiom owlAxiom = mp.originalOwlAxiom.getAxiomWithoutAnnotations();
+            if (owlAxiom == null) {
+                PipelineLogger.log("ERROR: no Manchester content and no OWL axiom for " + key);
+                return null;
+            }
+            return new NormalisedAxiom(mp.operator, mp.standpoint, type, mp.isRoot,
+                    mp.isNegatedInner, owlAxiom, null, null,
+                    extractChildKeysFromAxiom(owlAxiom));
+        }
 
         OWLAxiom owlAxiom = parseInnerAxiom(mp.manchester, mp.standpointAxiomType);
 

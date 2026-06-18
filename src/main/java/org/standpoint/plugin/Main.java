@@ -29,7 +29,7 @@ public class Main {
         PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
 
         // Pipeline 3 — Translate and save
-        new TranslationPipeline(kb, ctx, outputFile).run();
+        new TranslationPipeline(ctx.kb, ctx, outputFile).run();
 
     }
 }

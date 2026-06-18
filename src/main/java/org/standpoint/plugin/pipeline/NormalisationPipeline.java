@@ -21,7 +21,7 @@ public class NormalisationPipeline {
         StandpointKnowledgeBase kb = new AnnotationProcessor(ontology).run();
 
         if (kb == null) {
-            PipelineLogger.log("Pipeline returned null — no formulas found.");
+            PipelineLogger.log("Pipeline returned null — nothing found.");
             return null;
         }
 
