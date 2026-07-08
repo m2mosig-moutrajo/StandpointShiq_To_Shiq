@@ -99,7 +99,7 @@ public class StandpointPanel extends JPanel {
             // outputFile is null — pipeline returns OWLOntology without saving
             textAreaLog.append("\n==== Pipeline 3 — Translation ====\n");
             OWLOntology translated =
-                    new TranslationPipeline(kb, ctx, null).run();
+                    new TranslationPipeline(ctx, null).run();
 
             textAreaLog.append("Axioms produced: "
                     + translated.getAxiomCount() + "\n");

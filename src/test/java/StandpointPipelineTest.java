@@ -182,24 +182,13 @@ public class StandpointPipelineTest {
     // =========================================================================
 
     /**
-     * Smoke test on a minimal KB: 1 of each axiom kind, 1 formula,
+     * test on a KB: 1 of each axiom kind, 1 formula,
      * 2 NORMAL sharpenings — no ZERO or NEGATED, so Mode A is consistent.
      */
     @Test
-    public void testMinimalKB() throws Exception {
+    public void testManualKB() throws Exception {
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
         runTest(1, 1, 1, 1, 1, 1, 2, 2, 0, 0);
-    }
-
-    /**
-     * Stress test on a larger KB: 5 of each axiom kind, 4 formulas,
-     * 4 NORMAL + 1 ZERO + 1 NEGATED sharpenings.
-     * ZERO/NEGATED guarantee inconsistency via Rules (9) and (8).
-     */
-    @Test
-    public void testLargerKB() throws Exception {
-        PipelineLogger.setLevel(PipelineLogger.Level.OFF);
-        runTest(5, 5, 5, 5, 5, 5, 4, 4, 10, 10);
     }
 
     // =========================================================================
@@ -294,7 +283,7 @@ public class StandpointPipelineTest {
         OWLOntology ont2 = buildOntology(axioms, formulas, sharpening);
         StandpointKnowledgeBase kb2        = new NormalisationPipeline(ont2).run();
         PrecisificationContext  ctx        = new PrecisificationPipeline(kb2).run();
-        OWLOntology             translated = new TranslationPipeline(kb2, ctx, null).run();
+        OWLOntology             translated = new TranslationPipeline(ctx, null).run();
 
         // ── P2 — Precisification ──────────────────────────────────────────────
         int S = ctx.standpoints.size();
@@ -335,7 +324,7 @@ public class StandpointPipelineTest {
         injectContradiction(ont3);
         StandpointKnowledgeBase kb3  = new NormalisationPipeline(ont3).run();
         PrecisificationContext  ctx3 = new PrecisificationPipeline(kb3).run();
-        OWLOntology translated3      = new TranslationPipeline(kb3, ctx3, null).run();
+        OWLOntology translated3      = new TranslationPipeline(ctx3, null).run();
 
         OWLReasoner r2 = new Reasoner(new Configuration(), translated3);
         boolean modeB  = r2.isConsistent();

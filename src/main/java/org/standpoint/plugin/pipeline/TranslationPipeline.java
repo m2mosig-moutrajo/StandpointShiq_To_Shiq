@@ -33,10 +33,9 @@ public class TranslationPipeline {
     private final File                     outputFile;
     private final OWLDataFactory           df;
 
-    public TranslationPipeline(StandpointKnowledgeBase kb,
-                               PrecisificationContext ctx,
+    public TranslationPipeline(PrecisificationContext ctx,
                                File outputFile) {
-        this.kb         = kb;
+        this.kb         = ctx.kb;
         this.ctx        = ctx;
         this.outputFile = outputFile;
         this.df         = kb.sourceOntology
@@ -47,6 +46,48 @@ public class TranslationPipeline {
 
         // Step 8 — Run Trans(K)
         PipelineLogger.log("\n=== STEP 8 — Trans(K) translation ===");
+
+        // --- Full KB dump before translation ---
+        PipelineLogger.log("\n--- Knowledge Base snapshot ---");
+
+        PipelineLogger.log("\n  Sharpening set (" + kb.sharpening.size() + "):");
+        kb.sharpening.forEach(s -> PipelineLogger.log("    " + s));
+
+        if (kb.owlMap != null) {
+            long rootCount = kb.owlMap.values().stream().filter(a -> a.isRoot).count();
+            long nonRootCount = kb.owlMap.size() - rootCount;
+            PipelineLogger.log("\n  owlMap — root axioms (" + rootCount + "):");
+            kb.owlMap.entrySet().stream()
+                    .filter(e -> e.getValue().isRoot)
+                    .forEach(e -> PipelineLogger.log("    " + e.getKey() + " → " + e.getValue()));
+            PipelineLogger.log("\n  owlMap — non-root (nested modal nodes) (" + nonRootCount + "):");
+            kb.owlMap.entrySet().stream()
+                    .filter(e -> !e.getValue().isRoot)
+                    .forEach(e -> PipelineLogger.log("    " + e.getKey() + " → " + e.getValue()));
+        }
+
+        if (kb.canonicalKey != null) {
+            PipelineLogger.log("\n  canonicalKey map (" + kb.canonicalKey.size() + "):");
+            kb.canonicalKey.forEach((k, v) -> PipelineLogger.log("    " + k + " → " + v));
+        }
+
+        PipelineLogger.log("\n  Standpoints NS(K) (" + ctx.standpoints.size() + "): " + ctx.standpoints);
+
+        PipelineLogger.log("\n  Closures t^K (" + ctx.closures.size() + "):");
+        ctx.closures.forEach((s, cl) -> PipelineLogger.log("    " + s + "^K = " + cl));
+
+        PipelineLogger.log("\n  Diamond subterms ST(K) (" + ctx.diamonds.size() + "):");
+        ctx.diamonds.forEach(d -> PipelineLogger.log("    " + d));
+
+        PipelineLogger.log("\n  SP_n → D_n map (" + ctx.spToDiamondId.size() + "):");
+        ctx.spToDiamondId.forEach((sp, dn) -> PipelineLogger.log("    " + sp + " → " + dn));
+
+        PipelineLogger.log("\n  Precisification set Π_K (" + ctx.precSet.size() + "):");
+        ctx.precSet.getAllPrecisifications()
+                .forEach(pi -> PipelineLogger.log("    " + pi));
+
+        PipelineLogger.log("\n--- End of KB snapshot ---\n");
+
         AuxiliaryNameFactory aux = new AuxiliaryNameFactory(
                 kb, ctx.spToDiamondId, df);
         ConceptTranslator conceptTranslator = new ConceptTranslator(
