@@ -5,7 +5,9 @@ import org.semanticweb.owlapi.model.*;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;
-import org.standpoint.plugin.translation.*;
+import org.standpoint.plugin.pipeline.translation.AuxiliaryNameFactory;
+import org.standpoint.plugin.pipeline.translation.ConceptTranslator;
+import org.standpoint.plugin.pipeline.translation.StandpointTranslator;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.io.File;
@@ -31,10 +33,9 @@ public class TranslationPipeline {
     private final File                     outputFile;
     private final OWLDataFactory           df;
 
-    public TranslationPipeline(StandpointKnowledgeBase kb,
-                               PrecisificationContext ctx,
+    public TranslationPipeline(PrecisificationContext ctx,
                                File outputFile) {
-        this.kb         = kb;
+        this.kb         = ctx.kb;
         this.ctx        = ctx;
         this.outputFile = outputFile;
         this.df         = kb.sourceOntology
@@ -45,6 +46,48 @@ public class TranslationPipeline {
 
         // Step 8 — Run Trans(K)
         PipelineLogger.log("\n=== STEP 8 — Trans(K) translation ===");
+
+        // --- Full KB dump before translation ---
+        PipelineLogger.log("\n--- Knowledge Base snapshot ---");
+
+        PipelineLogger.log("\n  Sharpening set (" + kb.sharpening.size() + "):");
+        kb.sharpening.forEach(s -> PipelineLogger.log("    " + s));
+
+        if (kb.owlMap != null) {
+            long rootCount = kb.owlMap.values().stream().filter(a -> a.isRoot).count();
+            long nonRootCount = kb.owlMap.size() - rootCount;
+            PipelineLogger.log("\n  owlMap — root axioms (" + rootCount + "):");
+            kb.owlMap.entrySet().stream()
+                    .filter(e -> e.getValue().isRoot)
+                    .forEach(e -> PipelineLogger.log("    " + e.getKey() + " → " + e.getValue()));
+            PipelineLogger.log("\n  owlMap — non-root (nested modal nodes) (" + nonRootCount + "):");
+            kb.owlMap.entrySet().stream()
+                    .filter(e -> !e.getValue().isRoot)
+                    .forEach(e -> PipelineLogger.log("    " + e.getKey() + " → " + e.getValue()));
+        }
+
+        if (kb.canonicalKey != null) {
+            PipelineLogger.log("\n  canonicalKey map (" + kb.canonicalKey.size() + "):");
+            kb.canonicalKey.forEach((k, v) -> PipelineLogger.log("    " + k + " → " + v));
+        }
+
+        PipelineLogger.log("\n  Standpoints NS(K) (" + ctx.standpoints.size() + "): " + ctx.standpoints);
+
+        PipelineLogger.log("\n  Closures t^K (" + ctx.closures.size() + "):");
+        ctx.closures.forEach((s, cl) -> PipelineLogger.log("    " + s + "^K = " + cl));
+
+        PipelineLogger.log("\n  Diamond subterms ST(K) (" + ctx.diamonds.size() + "):");
+        ctx.diamonds.forEach(d -> PipelineLogger.log("    " + d));
+
+        PipelineLogger.log("\n  SP_n → D_n map (" + ctx.spToDiamondId.size() + "):");
+        ctx.spToDiamondId.forEach((sp, dn) -> PipelineLogger.log("    " + sp + " → " + dn));
+
+        PipelineLogger.log("\n  Precisification set Π_K (" + ctx.precSet.size() + "):");
+        ctx.precSet.getAllPrecisifications()
+                .forEach(pi -> PipelineLogger.log("    " + pi));
+
+        PipelineLogger.log("\n--- End of KB snapshot ---\n");
+
         AuxiliaryNameFactory aux = new AuxiliaryNameFactory(
                 kb, ctx.spToDiamondId, df);
         ConceptTranslator conceptTranslator = new ConceptTranslator(
@@ -62,7 +105,7 @@ public class TranslationPipeline {
                 .map(a -> (OWLSubClassOfAxiom) a)
                 .filter(a -> a.getSubClass() instanceof OWLClass
                         && a.getSubClass().asOWLClass()
-                        .getIRI().getShortForm().startsWith("AUX_"))
+                        .getIRI().getShortForm().startsWith(AuxiliaryNameFactory.AUX_PREFIX))
                 .forEach(a -> PipelineLogger.log("    " + a));
 
         PipelineLogger.log("\n  -- Type (2)-(6): Root axiom translations --");
@@ -98,11 +141,11 @@ public class TranslationPipeline {
      * Adds a rdfs:comment annotation to the translated ontology header
      * summarising what each D_n identifier represents.
      * Format:
-     *   === D_n Legend ===
+     *   === Dn Legend ===
      *   D1 = ◇_s1 [ Person ]
      *   D3 = ◇_s3 [ r some SP_2 ]
      *
-     *   === SP References ===
+     *   === SP_n Legend ===
      *   SP_2 = □_s3 [ G ]
      */
     private void addDnLegend(OWLOntology translated,
@@ -113,7 +156,7 @@ public class TranslationPipeline {
         OWLDataFactory df           = manager.getOWLDataFactory();
 
         StringBuilder legend = new StringBuilder();
-        legend.append("=== D_n Legend ===\n");
+        legend.append("=== Dn Legend ===\n");
 
         Map<String, String> dnToDescription = new LinkedHashMap<>();
 
@@ -158,7 +201,7 @@ public class TranslationPipeline {
                 if (ax == null || ax.owlTree == null) continue;
 
                 if (firstSp) {
-                    legend.append("\n=== SP References ===\n");
+                    legend.append("\n=== SP_n Legend ===\n");
                     firstSp = false;
                 }
 

@@ -1,8 +1,8 @@
 package org.standpoint.plugin.loader;
 
 import org.semanticweb.owlapi.model.*;
-import org.standpoint.plugin.model.StandpointAxiomType;
-import org.standpoint.plugin.model.Sharpening;
+import org.standpoint.plugin.model.*;
+import org.standpoint.plugin.pipeline.normalisation.SharpeningParser;
 import org.standpoint.plugin.util.PipelineLogger;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -15,54 +15,37 @@ import java.util.*;
 
 public class OntologyLoader {
 
-    private static final String STANDPOINT_AXIOM_PROP_NAME = "standpointAxiom";
-    private static final String STANDPOINT_SHARPENING_PROP_NAME = "standpointSharpening";
-    private static final String STANDPOINT_FORMULA_PROP_NAME = "standpointFormula";
-
-    public static class AxiomWithLabel {
-        public final OWLAxiom axiom;
-        public final List<String> standpointLabels;
-        public final StandpointAxiomType axiomType;
-
-        public AxiomWithLabel(OWLAxiom axiom, List<String> standpointLabels,
-                              StandpointAxiomType axiomType) {
-            this.axiom = axiom;
-            this.standpointLabels = standpointLabels;
-            this.axiomType = axiomType;
-        }
-    }
-
-
-    public static List<Sharpening> loadSharpenings(OWLOntology ontology) {
-        List<Sharpening> sharpenings = new ArrayList<>();
-
+    public List<Sharpening> loadSharpening(OWLOntology ontology) {
+        List<Sharpening> sharpening = new ArrayList<>();
+        SharpeningParser parser = new SharpeningParser();
         OWLAnnotationProperty sharpeningProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_SHARPENING_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_SHARPENING_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
-        if (sharpeningProp == null) return sharpenings;
+        if (sharpeningProp == null) return sharpening;
 
         for (OWLAnnotation ann : ontology.getAnnotations()) {
             if (ann.getProperty().equals(sharpeningProp)) {
                 String val = ann.getValue().asLiteral()
                         .transform(l -> l.getLiteral()).orNull();
-                if (val != null) sharpenings.add(Sharpening.parse(val.trim()));
+                if (val != null) sharpening.add(parser.parse(val.trim()));
             }
         }
 
-        return sharpenings;
+        return sharpening;
     }
+    FormulaParser formulaParser = new FormulaParser();
     // Load standpointFormula annotations from ontology level
-    public static List<FormulaParser.ParsedFormula> loadFormulas(OWLOntology ontology) {
-        List<FormulaParser.ParsedFormula> formulas = new ArrayList<>();
+    public List<ParsedFormula> loadFormulas(OWLOntology ontology) {
+        List<ParsedFormula> formulas = new ArrayList<>();
 
         OWLAnnotationProperty formulaProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_FORMULA_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_FORMULA_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
@@ -72,7 +55,7 @@ public class OntologyLoader {
             if (ann.getProperty().equals(formulaProp)) {
                 String val = ann.getValue().asLiteral()
                         .transform(l -> l.getLiteral()).orNull();
-                if (val != null) formulas.add(FormulaParser.parse(val.trim()));
+                if (val != null) formulas.add(formulaParser.parse(val.trim()));
             }
         }
 
@@ -80,66 +63,76 @@ public class OntologyLoader {
         return formulas;
     }
     // Load standpointLabel annotations from axioms — returns id → modal content map
-    public static Map<String, AxiomWithLabel> loadAxiomLabels(OWLOntology ontology) {
+    public Map<String, AxiomWithLabel> loadAxiomLabels(OWLOntology ontology) {
         Map<String, AxiomWithLabel> axiomMap = new LinkedHashMap<>();
 
         OWLAnnotationProperty labelProp = ontology
                 .getAnnotationPropertiesInSignature()
                 .stream()
-                .filter(p -> p.getIRI().getShortForm().equals(STANDPOINT_AXIOM_PROP_NAME))
+                .filter(p -> p.getIRI().getShortForm().equals(PlaceholderType.STANDPOINT_AXIOM_PROP_NAME))
                 .findFirst()
                 .orElse(null);
 
         if (labelProp == null) return axiomMap;
 
+        // GCI axioms
+        for (OWLSubClassOfAxiom axiom :
+                ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
+            extractAxiomLabel(axiom, labelProp,
+                    StandpointAxiomType.CONCEPT_INCLUSION, axiomMap);
+        }
+
         // EquivalentClasses axioms
         for (OWLEquivalentClassesAxiom axiom :
                 ontology.getAxioms(AxiomType.EQUIVALENT_CLASSES)) {
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.CONCEPT_INCLUSION,
-                    axiomMap);
+                    StandpointAxiomType.CONCEPT_EQUIVALENCE, axiomMap);
         }
 
-        // GCI axioms
-        for (OWLSubClassOfAxiom axiom : ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
+        // DisjointClasses axioms
+        for (OWLDisjointClassesAxiom axiom :
+                ontology.getAxioms(AxiomType.DISJOINT_CLASSES)) {
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.CONCEPT_INCLUSION,
-                    axiomMap);
+                    StandpointAxiomType.CONCEPT_DISJOINT, axiomMap);
         }
 
-        // Assertion axioms
-        for (OWLClassAssertionAxiom axiom : ontology.getAxioms(AxiomType.CLASS_ASSERTION)) {
+        // DisjointUnion axioms
+        for (OWLDisjointUnionAxiom axiom :
+                ontology.getAxioms(AxiomType.DISJOINT_UNION)) {
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.CONCEPT_ASSERTION,
-                    axiomMap);
+                    StandpointAxiomType.CONCEPT_DISJOINT_UNION, axiomMap);
         }
 
-        // Role inclusion axioms
-        for (OWLSubObjectPropertyOfAxiom axiom :
-                ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
+        // Concept assertion axioms
+        for (OWLClassAssertionAxiom axiom :
+                ontology.getAxioms(AxiomType.CLASS_ASSERTION)) {
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.ROLE_INCLUSION,
-                    axiomMap);
+                    StandpointAxiomType.CONCEPT_ASSERTION, axiomMap);
         }
 
         // Role assertion axioms
         for (OWLObjectPropertyAssertionAxiom axiom :
                 ontology.getAxioms(AxiomType.OBJECT_PROPERTY_ASSERTION)) {
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.ROLE_ASSERTION,
-                    axiomMap);
+                    StandpointAxiomType.ROLE_ASSERTION, axiomMap);
+        }
+
+        // Role inclusion axioms
+        for (OWLSubObjectPropertyOfAxiom axiom :
+                ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
+            extractAxiomLabel(axiom, labelProp,
+                    StandpointAxiomType.ROLE_INCLUSION, axiomMap);
         }
 
         // Transitivity axioms
         for (OWLTransitiveObjectPropertyAxiom axiom :
                 ontology.getAxioms(AxiomType.TRANSITIVE_OBJECT_PROPERTY)) {
 
-            // Approach 1 — annotation directly on axiom (programmatic / test approach)
+            // Approach 1 — annotation directly on axiom
             extractAxiomLabel(axiom, labelProp,
-                    StandpointAxiomType.ROLE_TRANSITIVITY,
-                    axiomMap);
+                    StandpointAxiomType.ROLE_TRANSITIVITY, axiomMap);
 
-            // Approach 2 — annotation on property itself (Protégé UI approach)
+            // Approach 2 — annotation on property IRI (Protégé UI approach)
             OWLObjectProperty property = axiom.getProperty().asOWLObjectProperty();
             for (OWLAnnotationAssertionAxiom annAxiom :
                     ontology.getAnnotationAssertionAxioms(property.getIRI())) {
@@ -149,9 +142,7 @@ public class OntologyLoader {
                     if (val != null) {
                         String id = extractId(val.trim());
                         if (id != null && !axiomMap.containsKey(id)) {
-                            axiomMap.put(id, new AxiomWithLabel(axiom,
-                                    Collections.singletonList(val.trim()),
-                                    StandpointAxiomType.ROLE_TRANSITIVITY));
+                            axiomMap.put(id, new AxiomWithLabel(axiom, val.trim(), StandpointAxiomType.ROLE_TRANSITIVITY));
                         }
                     }
                 }
@@ -162,7 +153,7 @@ public class OntologyLoader {
         return axiomMap;
     }
 
-    private static void extractAxiomLabel(OWLAxiom axiom,
+    private void extractAxiomLabel(OWLAxiom axiom,
                                           OWLAnnotationProperty labelProp,
                                           StandpointAxiomType axiomType,
                                           Map<String, AxiomWithLabel> axiomMap) {
@@ -172,16 +163,13 @@ public class OntologyLoader {
                         .transform(l -> l.getLiteral()).orNull();
                 if (val != null) {
                     String id = extractId(val.trim());
-                    if (id != null) axiomMap.put(id,
-                            new AxiomWithLabel(axiom,
-                                    Collections.singletonList(val.trim()), axiomType));
+                    if (id != null) axiomMap.put(id, new AxiomWithLabel(axiom, val.trim(), axiomType));
                 }
             }
         }
     }
-
     // Extracts id from <modal id="F1">...</modal>
-    private static String extractId(String xml) {
+    private String extractId(String xml) {
         try {
             String wrapped = "<root>" + xml.trim() + "</root>";
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();

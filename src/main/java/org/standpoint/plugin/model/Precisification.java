@@ -1,7 +1,7 @@
 package org.standpoint.plugin.model;
 
 import org.semanticweb.owlapi.model.OWLNamedIndividual;
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.Objects;
 

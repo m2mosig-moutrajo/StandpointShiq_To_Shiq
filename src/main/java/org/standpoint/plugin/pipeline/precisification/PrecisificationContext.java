@@ -1,7 +1,7 @@
 package org.standpoint.plugin.pipeline.precisification;
 
-import org.standpoint.plugin.translation.ConceptMap;
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.Map;
 import java.util.Set;
@@ -17,21 +17,20 @@ public class PrecisificationContext {
     public final Map<String, Set<String>> closures;
     public final PrecisificationSet       precSet;
     public final Map<String, String>      spToDiamondId;
-    public final ConceptMap               conceptMap;
+    public final StandpointKnowledgeBase kb;
 
     public PrecisificationContext(
             Set<String>              standpoints,
             Set<DiamondExpression>      diamonds,
             Map<String, Set<String>> closures,
             PrecisificationSet       precSet,
-            Map<String, String>      spToDiamondId,
-            ConceptMap               conceptMap) {
+            Map<String, String>      spToDiamondId, StandpointKnowledgeBase kb) {
 
         this.standpoints   = standpoints;
         this.diamonds      = diamonds;
         this.closures      = closures;
         this.precSet       = precSet;
         this.spToDiamondId = spToDiamondId;
-        this.conceptMap    = conceptMap;
+        this.kb = kb;
     }
 }

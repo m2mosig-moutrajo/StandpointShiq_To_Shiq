@@ -4,6 +4,7 @@ import org.protege.editor.owl.model.OWLModelManager;
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyAlreadyExistsException;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.pipeline.NormalisationPipeline;
 import org.standpoint.plugin.pipeline.PrecisificationPipeline;
 import org.standpoint.plugin.pipeline.TranslationPipeline;
@@ -24,6 +25,7 @@ public class StandpointPanel extends JPanel {
     private final JCheckBox       checkVerbose;
     private final JTextArea       textAreaLog;
     private final OWLModelManager modelManager;
+    private final JButton         buttonSetup;
 
     public StandpointPanel(OWLModelManager modelManager) {
         this.modelManager = modelManager;
@@ -32,6 +34,7 @@ public class StandpointPanel extends JPanel {
         buttonTranslate = new JButton("Translate");
         buttonClear     = new JButton("Clear");
         checkVerbose    = new JCheckBox("Log");
+        buttonSetup     = new JButton("Setup Annotations");
         checkVerbose.setSelected(false);
 
         textAreaLog = new JTextArea();
@@ -41,6 +44,7 @@ public class StandpointPanel extends JPanel {
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.add(buttonTranslate);
         topPanel.add(buttonClear);
+        topPanel.add(buttonSetup);
         topPanel.add(checkVerbose);
 
         add(topPanel, BorderLayout.NORTH);
@@ -48,6 +52,7 @@ public class StandpointPanel extends JPanel {
 
         buttonTranslate.addActionListener(e -> onTranslateClicked());
         buttonClear.addActionListener(e -> onClearClicked());
+        buttonSetup.addActionListener(e -> onSetupClicked());
     }
 
     // ── Main translate action ──────────────────────────────────────────────
@@ -62,9 +67,7 @@ public class StandpointPanel extends JPanel {
             return;
         }
 
-        PipelineLogger.Level logLevel = checkVerbose.isSelected()
-                ? PipelineLogger.Level.ON
-                : PipelineLogger.Level.OFF;
+        PipelineLogger.setLevel(checkVerbose.isSelected() ? PipelineLogger.Level.ON : PipelineLogger.Level.OFF);
 
         // Redirect System.out to textAreaLog when verbose
         PrintStream originalOut = System.out;
@@ -78,13 +81,11 @@ public class StandpointPanel extends JPanel {
             StandpointKnowledgeBase kb =
                     new NormalisationPipeline(ontology).run();
 
-            if (kb == null || kb.manchesterMap.isEmpty()) {
+            if (kb == null || kb.owlMap.isEmpty()) {
                 textAreaLog.append("No standpoint formulas found.\n");
-                return;
             }
 
-            textAreaLog.append("Placeholder map size: "
-                    + kb.manchesterMap.size() + "\n");
+            textAreaLog.append("Placeholder map size: " + kb.owlMap.size() + "\n");
 
             // ── Pipeline 2 — Build worlds ──────────────────────────────
             textAreaLog.append("\n==== Pipeline 2 — Precisification ====\n");
@@ -98,7 +99,7 @@ public class StandpointPanel extends JPanel {
             // outputFile is null — pipeline returns OWLOntology without saving
             textAreaLog.append("\n==== Pipeline 3 — Translation ====\n");
             OWLOntology translated =
-                    new TranslationPipeline(kb, ctx, null).run();
+                    new TranslationPipeline(ctx, null).run();
 
             textAreaLog.append("Axioms produced: "
                     + translated.getAxiomCount() + "\n");
@@ -110,8 +111,8 @@ public class StandpointPanel extends JPanel {
             textAreaLog.append("\nError: " + ex.getMessage() + "\n");
             ex.printStackTrace();
         } finally {
-            // Always restore System.out even if pipeline throws
             System.setOut(originalOut);
+            PipelineLogger.setLevel(PipelineLogger.Level.OFF);
         }
     }
 
@@ -123,23 +124,50 @@ public class StandpointPanel extends JPanel {
      */
     private void loadIntoProtege(OWLOntology translated) {
         try {
-            // Step 1 — Save to a temp file so Protégé can load it cleanly
-            File tempFile = File.createTempFile("standpoint_translated_", ".rdf");
-            tempFile.deleteOnExit();
+            // Step 1 — Ask user where to save
+            JFileChooser chooser = new JFileChooser();
+            chooser.setDialogTitle("Save Translated Ontology");
+            chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                    "RDF/XML Ontology (*.rdf)", "rdf"));
+            String sourceFileName = "translated"; // fallback
+            try {
+                IRI docIRI = modelManager.getOWLOntologyManager()
+                        .getOntologyDocumentIRI(modelManager.getActiveOntology());
+                String path = docIRI.toURI().getPath();
+                String baseName = new File(path).getName();
+                if (baseName.contains("."))
+                    baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+                sourceFileName = baseName;
+            } catch (Exception ignored) {}
 
+            chooser.setSelectedFile(new File(sourceFileName + "_translated.rdf"));
+
+            int result = chooser.showSaveDialog(this);
+            if (result != JFileChooser.APPROVE_OPTION) {
+                textAreaLog.append("Save cancelled.\n");
+                return;
+            }
+
+            File selectedFile = chooser.getSelectedFile();
+
+            // Ensure .rdf extension
+            if (!selectedFile.getName().toLowerCase().endsWith(".rdf")) {
+                selectedFile = new File(selectedFile.getAbsolutePath() + ".rdf");
+            }
+
+            // Step 2 — Save to chosen file
             translated.getOWLOntologyManager().saveOntology(
                     translated,
                     new org.semanticweb.owlapi.formats.RDFXMLDocumentFormat(),
-                    IRI.create(tempFile.toURI()));
+                    IRI.create(selectedFile.toURI()));
 
-            textAreaLog.append("  Temp file: " + tempFile.getAbsolutePath() + "\n");
+            textAreaLog.append("  Saved to: " + selectedFile.getAbsolutePath() + "\n");
 
-            // Step 2 — Load into Protégé's own ontology manager
-            // Registers it as a new ontology in the current session
+            // Step 3 — Load into Protégé's own ontology manager
             OWLOntology loaded = modelManager.getOWLOntologyManager()
-                    .loadOntologyFromOntologyDocument(tempFile);
+                    .loadOntologyFromOntologyDocument(selectedFile);
 
-            // Step 3 — Make it active so Protégé switches to it
+            // Step 4 — Make it active
             modelManager.setActiveOntology(loaded);
 
             textAreaLog.append("Translated ontology loaded into Protégé.\n");
@@ -147,12 +175,11 @@ public class StandpointPanel extends JPanel {
             textAreaLog.append("to switch between the original and the translation.\n");
 
         } catch (OWLOntologyAlreadyExistsException ex) {
-            // Happens if you translate the same ontology twice in one session
             textAreaLog.append("A translated ontology with this IRI is already open.\n");
             textAreaLog.append("Close it in Protégé first, then translate again.\n");
 
         } catch (Exception ex) {
-            textAreaLog.append("Could not load into Protégé: "
+            textAreaLog.append("Could not save or load into Protégé: "
                     + ex.getMessage() + "\n");
             ex.printStackTrace();
         }
@@ -181,6 +208,54 @@ public class StandpointPanel extends JPanel {
     // ── Clear log ──────────────────────────────────────────────────────────
     private void onClearClicked() {
         textAreaLog.setText("");
+    }
+
+    private void onSetupClicked() {
+        OWLOntology ontology = modelManager != null
+                ? modelManager.getActiveOntology()
+                : null;
+
+        if (ontology == null) {
+            textAreaLog.append("No ontology loaded in Protégé.\n");
+            return;
+        }
+
+        try {
+            com.google.common.base.Optional<IRI> ontologyIRI =
+                    ontology.getOntologyID().getOntologyIRI();
+
+            String base = ontologyIRI.isPresent()
+                    ? ontologyIRI.get().toString()
+                    : "http://standpoint.org/annotation";
+
+            if (!base.endsWith("#") && !base.endsWith("/")) base += "#";
+
+            org.semanticweb.owlapi.model.OWLOntologyManager manager =
+                    modelManager.getOWLOntologyManager();
+            org.semanticweb.owlapi.model.OWLDataFactory df =
+                    manager.getOWLDataFactory();
+
+            String[] names = {
+                    PlaceholderType.STANDPOINT_AXIOM_PROP_NAME,
+                    PlaceholderType.STANDPOINT_SHARPENING_PROP_NAME,
+                    PlaceholderType.STANDPOINT_FORMULA_PROP_NAME
+            };
+
+            for (String name : names) {
+                org.semanticweb.owlapi.model.OWLAnnotationProperty prop =
+                        df.getOWLAnnotationProperty(IRI.create(base + name));
+                manager.addAxiom(ontology,
+                        df.getOWLDeclarationAxiom(prop));
+            }
+
+            textAreaLog.append("Setup complete — added annotation properties:\n");
+            for (String name : names)
+                textAreaLog.append("  • " + name + "\n");
+
+        } catch (Exception ex) {
+            textAreaLog.append("Setup failed: " + ex.getMessage() + "\n");
+            ex.printStackTrace();
+        }
     }
 
     // ── Standalone preview — runs without Protégé ─────────────────────────

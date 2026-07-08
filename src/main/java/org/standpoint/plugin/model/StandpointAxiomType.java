@@ -3,6 +3,9 @@ package org.standpoint.plugin.model;
 public enum StandpointAxiomType {
     NONE,
     CONCEPT_INCLUSION,
+    CONCEPT_EQUIVALENCE,
+    CONCEPT_DISJOINT,
+    CONCEPT_DISJOINT_UNION,
     CONCEPT_ASSERTION,
     ROLE_INCLUSION,
     ROLE_ASSERTION,

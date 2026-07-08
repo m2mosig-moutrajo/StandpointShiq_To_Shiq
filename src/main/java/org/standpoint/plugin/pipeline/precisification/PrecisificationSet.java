@@ -3,7 +3,7 @@ package org.standpoint.plugin.pipeline.precisification;
 import org.semanticweb.owlapi.model.OWLNamedIndividual;
 import org.standpoint.plugin.model.Precisification;
 import org.standpoint.plugin.model.PrecisificationType;
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -77,13 +77,15 @@ public class PrecisificationSet {
         return new PrecisificationSet(all, closures);
     }
 
-    /**
-     * σ(s) — returns all precisifications belonging to standpoint s.
-     * π ∈ σ(s) iff π.standpoint ∈ s^K
-     */
+    // π_t ∈ σ(s) iff s ∈ t^K
     public Set<Precisification> sigma(String standpoint) {
-        Set<String> closure = closures.getOrDefault(standpoint, Collections.singleton(standpoint));
-        return allPrecisifications.stream().filter(pi -> closure.contains(pi.standpoint)).collect(Collectors.toCollection(LinkedHashSet::new));
+        return allPrecisifications.stream()
+                .filter(pi -> {
+                    Set<String> piClosure = closures.getOrDefault(
+                            pi.standpoint, Collections.singleton(pi.standpoint));
+                    return piClosure.contains(standpoint);
+                })
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /**

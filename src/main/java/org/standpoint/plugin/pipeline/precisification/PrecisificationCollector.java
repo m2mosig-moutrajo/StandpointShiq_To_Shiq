@@ -4,7 +4,7 @@ import org.standpoint.plugin.model.Operator;
 import org.standpoint.plugin.model.Sharpening;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
-import org.standpoint.plugin.translation.DiamondExpression;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 
 import java.util.*;
 
@@ -35,7 +35,7 @@ public class PrecisificationCollector {
         }
 
         // from sharpenings — lhs standpoints
-        for (Sharpening s : kb.sharpenings) {
+        for (Sharpening s : kb.sharpening) {
             standpoints.addAll(s.lhsStandpoints);
             // rhs standpoint — skip "0" (zero standpoint)
             if (s.rhsStandpoint != null && !s.rhsStandpoint.equals("0")) {
@@ -44,7 +44,7 @@ public class PrecisificationCollector {
         }
 
         // universal standpoint always present
-        standpoints.add("*");
+     //   standpoints.add("*");
 
         return standpoints;
     }

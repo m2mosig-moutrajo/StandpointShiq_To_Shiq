@@ -13,8 +13,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test1.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\test1Translated.rdf");
+        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\testDemoH.rdf");
+        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\testDemoHTranslated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
@@ -29,6 +29,7 @@ public class Main {
         PrecisificationContext ctx = new PrecisificationPipeline(kb).run();
 
         // Pipeline 3 — Translate and save
-        new TranslationPipeline(kb, ctx, outputFile).run();
+        new TranslationPipeline(ctx, outputFile).run();
+
     }
 }

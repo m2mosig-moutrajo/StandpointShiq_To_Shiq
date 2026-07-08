@@ -10,7 +10,8 @@ import org.standpoint.plugin.pipeline.precisification.PrecisificationCollector;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationSet;
 import org.standpoint.plugin.pipeline.precisification.SharpeningClosureCalculator;
-import org.standpoint.plugin.translation.*;
+import org.standpoint.plugin.pipeline.translation.ConceptMap;
+import org.standpoint.plugin.pipeline.translation.DiamondExpression;
 import org.standpoint.plugin.util.PipelineLogger;
 
 import java.util.*;
@@ -106,7 +107,7 @@ public class PrecisificationPipeline {
         // Step 5 — Compute standpoint closures
         PipelineLogger.log("\n=== STEP 5 — Standpoint closures t^K ===");
         SharpeningClosureCalculator closureCalc =
-                new SharpeningClosureCalculator(kb.sharpenings, standpoints);
+                new SharpeningClosureCalculator(kb.sharpening, standpoints);
         Map<String, Set<String>> closures = closureCalc.computeAllClosures();
         closures.forEach((s, c) ->
                 PipelineLogger.log("  " + s + "^K = " + c));
@@ -121,8 +122,7 @@ public class PrecisificationPipeline {
         // Step 6 — Build precisification set
         PipelineLogger.log("\n=== STEP 6 — Build Π_K ===");
 
-        PrecisificationSet precSet = PrecisificationSet.build(
-                standpoints, diamonds, usedIndividuals, closures);
+        PrecisificationSet precSet = PrecisificationSet.build(standpoints, diamonds, usedIndividuals, closures);
 
         PipelineLogger.log("  Total precisifications: " + precSet.size());
         PipelineLogger.log("  STANDPOINT worlds:");
@@ -174,7 +174,7 @@ public class PrecisificationPipeline {
         PipelineLogger.log("\n✅ Precisification pipeline complete.");
         return new PrecisificationContext(
                 standpoints, diamonds, closures,
-                precSet, spToDiamondId, conceptMap);
+                precSet, spToDiamondId, kb);
     }
     /**
      * Collects all individuals that actually appear in at least one

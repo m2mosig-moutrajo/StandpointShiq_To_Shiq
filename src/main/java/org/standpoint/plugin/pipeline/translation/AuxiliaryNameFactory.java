@@ -1,8 +1,8 @@
-package org.standpoint.plugin.translation;
+package org.standpoint.plugin.pipeline.translation;
 
 import org.semanticweb.owlapi.model.*;
+import org.standpoint.plugin.model.PlaceholderType;
 import org.standpoint.plugin.model.Precisification;
-import org.standpoint.plugin.pipeline.normalisation.ManchesterToOWLConverter;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
 
 import java.util.*;
@@ -27,6 +27,8 @@ public class AuxiliaryNameFactory {
 
     private final Map<String, OWLClass> classCache = new LinkedHashMap<>();
     private final Map<String, OWLObjectProperty> propertyCache = new LinkedHashMap<>();
+
+    public static final String AUX_PREFIX = "AUX_";
 
     public AuxiliaryNameFactory(StandpointKnowledgeBase kb,
                                 Map<String, String> spToDiamondId,
@@ -80,22 +82,7 @@ public class AuxiliaryNameFactory {
     public OWLClass getAuxConcept(String spKey, Precisification pi) {
         String canonical = canonicalKey.getOrDefault(spKey, spKey);
         String dn        = spToDiamondId.getOrDefault(canonical, canonical);
-        String key       = "AUX_" + dn + "_" + pi.id;
-        return classCache.computeIfAbsent(key,
-                k -> df.getOWLClass(IRI.create(ontologyBase + k)));
-    }
-
-    /**
-     * Returns true if this OWLClass is an SP_n placeholder.
-     */
-    public static boolean isPlaceholder(OWLClass cls) {
-        return ManchesterToOWLConverter.isPlaceholder(cls);
-    }
-
-    /**
-     * Extracts the SP_n key from a placeholder IRI.
-     */
-    public static String getPlaceholderKey(OWLClass cls) {
-        return cls.getIRI().getShortForm();
+        String key       = AUX_PREFIX + dn + "_" + pi.id;
+        return classCache.computeIfAbsent(key, k -> df.getOWLClass(IRI.create(ontologyBase + k)));
     }
 }

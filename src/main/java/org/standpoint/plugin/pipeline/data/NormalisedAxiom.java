@@ -14,6 +14,11 @@ public class NormalisedAxiom {
     public final StandpointAxiomType axiomType;
     public final boolean isRoot;
 
+    // Negation flag — interpreted based on isRoot:
+    //   isRoot  + isNegated → negated axiom   → normalisation rules (3)(5)(6)(7)(9)
+    //   !isRoot + isNegated → negated concept → complement already applied in owlTree
+    public final boolean isNegatedInner;
+
     // Full typed OWL axiom — set for root entries.
     // e.g. OWLSubClassOfAxiom, OWLClassAssertionAxiom, etc.
     // Null for non-root entries (NONE type — nested modal nodes).
@@ -32,10 +37,12 @@ public class NormalisedAxiom {
     // Used by Trans(K) to recurse into children without re-walking the tree.
     public final Set<String> childKeys;
 
+
     public NormalisedAxiom( Operator operator,
                             String standpoint,
                             StandpointAxiomType axiomType,
                             boolean isRoot,
+                            boolean isNegated,
                             OWLAxiom owlAxiom,
                             OWLClassExpression owlTree,
                             String manchester,
@@ -44,6 +51,7 @@ public class NormalisedAxiom {
         this.standpoint = standpoint;
         this.axiomType  = axiomType;
         this.isRoot     = isRoot;
+        this.isNegatedInner  = isNegated;
         this.owlAxiom   = owlAxiom;
         this.owlTree    = owlTree;
         this.manchester = manchester;
@@ -56,8 +64,13 @@ public class NormalisedAxiom {
         String content = owlAxiom != null ? owlAxiom.toString()
                 : owlTree  != null ? owlTree.toString()
                 : manchester;
-        return opName + "_" + standpoint + "[" + content + "]"
-                + (isRoot ? " [ROOT]" : "")
-                + (childKeys.isEmpty() ? "" : " children=" + childKeys);
+        return opName + "_" + standpoint
+                + "[" + content + "]"
+                + (isRoot     ? " [ROOT]"     : "")
+                + (isNegatedInner  ? " [INNER_NEGATED]"  : "")
+                + (axiomType != StandpointAxiomType.NONE
+                ? " [" + axiomType + "]" : "")
+                + (childKeys != null && !childKeys.isEmpty()
+                ? " children=" + childKeys : "");
     }
 }
