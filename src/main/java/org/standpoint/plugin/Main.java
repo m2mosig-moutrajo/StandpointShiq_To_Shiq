@@ -13,8 +13,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
 
-        File inputFile  = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\testDemoH.rdf");
-        File outputFile = new File("C:\\Users\\Omar\\Downloads\\OwlTest\\testDemoHTranslated.rdf");
+        File inputFile  = new File("examples/testDemoH.rdf");
+        File outputFile = new File("examples/testDemoHTranslated.rdf");
 
         PipelineLogger.setLevel(PipelineLogger.Level.ON);
 
