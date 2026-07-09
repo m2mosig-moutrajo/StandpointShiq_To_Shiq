@@ -1,0 +1,237 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.semanticweb.org/demoH/"
+     xml:base="http://www.semanticweb.org/demoH/"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:demoH="http://www.semanticweb.org/demoH#"
+     xmlns:untitled-ontology-224="http://www.semanticweb.org/omar/ontologies/2026/5/untitled-ontology-224#">
+    <owl:Ontology rdf:about="http://www.semanticweb.org/demoH">
+        <demoH:standpointFormula>&lt;formula op=&quot;box&quot; standpoint=&quot;*&quot;&gt;
+  &lt;intersection&gt;
+    &lt;literal ref=&quot;F5&quot;/&gt;
+    &lt;literal ref=&quot;F6&quot;/&gt;
+  &lt;/intersection&gt;
+&lt;/formula&gt;</demoH:standpointFormula>
+        <demoH:standpointFormula>&lt;formula op=&quot;box&quot; standpoint=&quot;s1&quot;&gt;
+  &lt;intersection&gt;
+    &lt;literal ref=&quot;F1&quot;/&gt;
+    &lt;literal ref=&quot;F3&quot;/&gt;
+    &lt;literal ref=&quot;F7&quot;/&gt;
+  &lt;/intersection&gt;
+&lt;/formula&gt;</demoH:standpointFormula>
+        <demoH:standpointFormula>&lt;formula op=&quot;box&quot; standpoint=&quot;s2&quot;&gt;
+  &lt;intersection&gt;
+    &lt;literal ref=&quot;F2&quot;/&gt;
+    &lt;literal ref=&quot;F8&quot;/&gt;
+  &lt;/intersection&gt;
+&lt;/formula&gt;</demoH:standpointFormula>
+        <demoH:standpointFormula>&lt;formula op=&quot;box&quot; standpoint=&quot;s3&quot;&gt;
+  &lt;literal ref=&quot;F4&quot;/&gt;
+&lt;/formula&gt;</demoH:standpointFormula>
+        <demoH:standpointSharpening>&lt;sharpening&gt;
+  &lt;lhs&gt;&lt;standpoint&gt;s2&lt;/standpoint&gt;&lt;/lhs&gt;
+  &lt;rhs&gt;&lt;standpoint&gt;s1&lt;/standpoint&gt;&lt;/rhs&gt;
+&lt;/sharpening&gt;</demoH:standpointSharpening>
+    </owl:Ontology>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Annotation properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#standpointAxiom -->
+
+    <owl:AnnotationProperty rdf:about="http://www.semanticweb.org/demoH#standpointAxiom"/>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#standpointFormula -->
+
+    <owl:AnnotationProperty rdf:about="http://www.semanticweb.org/demoH#standpointFormula"/>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#standpointSharpening -->
+
+    <owl:AnnotationProperty rdf:about="http://www.semanticweb.org/demoH#standpointSharpening"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Object Properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#R1 -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/demoH#R1">
+        <rdfs:subPropertyOf rdf:resource="http://www.semanticweb.org/demoH#R2"/>
+    </owl:ObjectProperty>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#R1"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/2000/01/rdf-schema#subPropertyOf"/>
+        <owl:annotatedTarget rdf:resource="http://www.semanticweb.org/demoH#R2"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F7&quot;&gt;&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#R2 -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/demoH#R2">
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#TransitiveProperty"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F8&quot;&gt;&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Classes
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#C1 -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/demoH#C1">
+        <rdfs:subClassOf rdf:nodeID="genid2"/>
+        <rdfs:subClassOf rdf:nodeID="genid4"/>
+    </owl:Class>
+    <owl:Restriction rdf:nodeID="genid2">
+        <owl:onProperty rdf:resource="http://www.semanticweb.org/demoH#R1"/>
+        <owl:someValuesFrom rdf:resource="http://www.semanticweb.org/demoH#C2"/>
+    </owl:Restriction>
+    <owl:Restriction rdf:nodeID="genid4">
+        <owl:onProperty rdf:resource="http://www.semanticweb.org/demoH#R2"/>
+        <owl:someValuesFrom rdf:resource="http://www.semanticweb.org/demoH#C2"/>
+    </owl:Restriction>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/2000/01/rdf-schema#subClassOf"/>
+        <owl:annotatedTarget rdf:nodeID="genid2"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F1&quot;&gt;
+  C1 SubClassOf:
+    R1 some &lt;modal op=&quot;diamond&quot; standpoint=&quot;s3&quot;&gt;C2&lt;/modal&gt;
+&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/2000/01/rdf-schema#subClassOf"/>
+        <owl:annotatedTarget rdf:nodeID="genid4"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F2&quot;&gt;
+  C1 SubClassOf:
+    R2 some &lt;modal op=&quot;diamond&quot; standpoint=&quot;s3&quot;&gt;C2&lt;/modal&gt;
+&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#C2 -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/demoH#C2">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+    </owl:Class>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#C2"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/2000/01/rdf-schema#subClassOf"/>
+        <owl:annotatedTarget rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F4&quot;&gt;
+  C2 SubClassOf: C1
+&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#C3 -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/demoH#C3">
+        <rdfs:subClassOf rdf:nodeID="genid7"/>
+    </owl:Class>
+    <owl:Class rdf:nodeID="genid7">
+        <owl:intersectionOf rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/demoH#C2"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/demoH#C4"/>
+        </owl:intersectionOf>
+    </owl:Class>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#C3"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/2000/01/rdf-schema#subClassOf"/>
+        <owl:annotatedTarget rdf:nodeID="genid7"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F3&quot;&gt;
+  C3 SubClassOf:
+    &lt;modal op=&quot;box&quot; standpoint=&quot;s3&quot;&gt;C2&lt;/modal&gt; and C4
+&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#C4 -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/demoH#C4"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Individuals
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#a -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/demoH#a">
+        <rdf:type rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+    </owl:NamedIndividual>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#a"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#type"/>
+        <owl:annotatedTarget rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F5&quot;&gt;&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+    
+
+
+    <!-- http://www.semanticweb.org/demoH#b -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/demoH#b">
+        <rdf:type rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+    </owl:NamedIndividual>
+    <owl:Axiom>
+        <owl:annotatedSource rdf:resource="http://www.semanticweb.org/demoH#b"/>
+        <owl:annotatedProperty rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#type"/>
+        <owl:annotatedTarget rdf:resource="http://www.semanticweb.org/demoH#C1"/>
+        <demoH:standpointAxiom>&lt;axiom id=&quot;F6&quot;&gt;&lt;/axiom&gt;</demoH:standpointAxiom>
+    </owl:Axiom>
+</rdf:RDF>
+
+
+
+<!-- Generated by the OWL API (version 4.5.29.2024-05-13T12:11:03Z) https://github.com/owlcs/owlapi -->
+
