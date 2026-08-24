@@ -1,4 +1,3 @@
-import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.Assert;
@@ -15,7 +14,6 @@ import org.standpoint.plugin.pipeline.PrecisificationPipeline;
 import org.standpoint.plugin.pipeline.TranslationPipeline;
 import org.standpoint.plugin.pipeline.data.NormalisedAxiom;
 import org.standpoint.plugin.pipeline.data.StandpointKnowledgeBase;
-import org.standpoint.plugin.pipeline.normalisation.AnnotationProcessor;
 import org.standpoint.plugin.pipeline.precisification.PrecisificationContext;
 import org.standpoint.plugin.util.PipelineLogger;
 
@@ -24,16 +22,21 @@ import java.util.*;
 /**
  * Integration test suite for the Standpoint-SHIQ pipeline.
  *
- * Three @Test methods, each with a distinct purpose:
+ * Two @Test methods, each exercising a genuinely different input configuration:
+ *   testMinimalKB — small generated KB, NORMAL sharpenings only
+ *   testLargerKB  — larger generated KB, mixed NORMAL/ZERO/NEGATED sharpenings
  *
- *   testSharedKB   — P1+P2+P3+P4 on the shared KB (mixed sharpenings,
- *                    P4 Mode A expected consistent)
- *   testMinimalKB  — P1+P2+P3+P4 on a small KB with NORMAL sharpenings only
- *                    (P4 Mode A expected consistent)
- *   testLargerKB   — P1+P2+P3+P4 on a larger KB with mixed sharpenings
- *                    (P4 Mode A expected consistent)
+ * Each test runs P1/P2/P3 count assertions followed by six P4 consistency checks:
+ *
+ *   Mode A-1.0: translated KB as-is (no injection)          → consistent
+ *   Mode A-1.1: append □_s[C ⊑ ⊥]  +  □_t[C(a)]           → consistent (s ≠ t)
+ *   Mode A-1.2: append ◇_s[C ⊑ ⊥]  +  ◇_s[C(a)]           → consistent (two fresh standpoints)
+ *
+ *   Mode B-1.0: append ContraC ⊑ ⊥  +  ContraC(ind) unlabelled → inconsistent
+ *   Mode B-1.1: append □_s[C ⊑ ⊥]  +  □_t[C(a)]  +  t ⪯ s    → inconsistent
+ *   Mode B-1.2: append ◇_s[C ⊑ ⊥]  +  □_s[C(a)]              → inconsistent
  */
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+@FixMethodOrder(MethodSorters.JVM)
 public class StandpointPipelineTest {
 
     // ── Instance counters ─────────────────────────────────────────────────────
@@ -51,13 +54,13 @@ public class StandpointPipelineTest {
     private String freshAxiomId()    { return "F"   + (++axiomIdCounter); }
 
     // =========================================================================
-    // TEST 2 — Minimal KB (NORMAL sharpenings only, expected consistent)
+    // TEST 1 — Minimal KB (NORMAL sharpenings only)
     // =========================================================================
 
     /**
-     * Runs all four pipeline assertions on a small, fresh KB with NORMAL
-     * sharpenings only. P4 Mode A is expected to report consistent —
-     * verifying the pipeline does not introduce spurious inconsistencies.
+     * Small generated KB: 6 axioms (one of each supported type) + 2 NORMAL
+     * sharpenings. All concept/role/individual names are fresh and unique.
+     * Tests P1/P2/P3 count assertions plus all six P4 consistency modes.
      */
     @Test
     public void testMinimalKB() throws Exception {
@@ -66,14 +69,14 @@ public class StandpointPipelineTest {
     }
 
     // =========================================================================
-    // TEST 3 — Larger KB (mixed sharpenings, expected inconsistent)
+    // TEST 2 — Larger KB (mixed sharpenings)
     // =========================================================================
 
     /**
-     * Runs all four pipeline assertions on a larger, fresh KB with a mix
-     * of NORMAL, ZERO, and NEGATED sharpenings. ZERO uses intersection LHS
-     * (s1 ∩ s2 ⪯ 0) which does not force inconsistency on its own.
-     * P4 Mode A is expected consistent.
+     * Larger generated KB: 30 axioms + mix of NORMAL, ZERO, NEGATED sharpenings.
+     * ZERO uses intersection LHS (s1 ∩ s2 ⪯ 0), which does not force
+     * inconsistency without a world in both sigma(s1) and sigma(s2).
+     * Tests P1/P2/P3 count assertions plus all six P4 consistency modes.
      */
     @Test
     public void testLargerKB() throws Exception {
@@ -85,11 +88,6 @@ public class StandpointPipelineTest {
     // Flexible full-pipeline runner
     // =========================================================================
 
-    /**
-     * Generates a fresh, independent KB from explicit parameters, resets all
-     * instance counters so the run is isolated from shared data, then delegates
-     * to runPipelineAssertions.
-     */
     private void runTest(
             int numCI, int numCA, int numRI, int numRA, int numRT,
             int numNested, int numFormulas,
@@ -115,117 +113,294 @@ public class StandpointPipelineTest {
     }
 
     /**
-     * Runs P1, P2, P3, and P4 (Modes A and B) on the given KB data.
-     * All assertion logic is centralised here.
+     * Runs P1, P2, P3, and all six P4 modes on the given KB data.
      *
-     * P4 Mode A always expects consistent — ZERO sharpenings use intersection
-     * LHS (s1 ∩ s2 ⪯ 0) which does not guarantee inconsistency without a
-     * world shared between sigma(s1) and sigma(s2).
-     *
-     * P4 Mode B always expects inconsistency (contradiction injected).
+     * One ontology is built (baseOnt) and used throughout:
+     *   P1 → P2 → P3 run as a single chain on baseOnt; results flow through.
+     *   P4 A-1.0 reuses the translated ontology from P3 directly.
+     *   P4 A-1.1 through B-1.2 copy baseOnt, inject, and retranslate —
+     *   required because each injection changes Π_K (new standpoints or diamonds).
      */
     private void runPipelineAssertions(
             List<GeneratedAxiom>      axioms,
             List<GeneratedFormula>    formulas,
             List<GeneratedSharpening> sharpening) throws Exception {
 
-        // ── P1 — Normalisation ────────────────────────────────────────────────
+        // ── Single ontology build ─────────────────────────────────────────────
+        OWLOntology baseOnt = buildOntology(axioms, formulas, sharpening);
+
+        // ── P1 → P2 → P3 — single timed chain, results flow through ──────────
         ExpectedNormalisationCounts expected =
                 computeExpectedNormalisation(axioms, formulas, sharpening);
-        OWLOntology ont1 = buildOntology(axioms, formulas, sharpening);
-        StandpointKnowledgeBase kb1 = new AnnotationProcessor(ont1).run();
-        long actualRoots = kb1.owlMap.values().stream()
+
+        long t0 = System.currentTimeMillis();
+        StandpointKnowledgeBase kb  = new NormalisationPipeline(baseOnt).run();
+        long t1 = System.currentTimeMillis();
+        PrecisificationContext  ctx = new PrecisificationPipeline(kb).run();
+        long t2 = System.currentTimeMillis();
+        OWLOntology      translated = new TranslationPipeline(ctx, null).run();
+        long t3 = System.currentTimeMillis();
+
+        System.out.printf("\nPipeline runtimes: P1=%d ms  P2=%d ms  P3=%d ms  total=%d ms%n",
+                t1-t0, t2-t1, t3-t2, t3-t0);
+
+        // ── P1 assertions ─────────────────────────────────────────────────────
+        long actualRoots = kb.owlMap.values().stream()
                 .filter(na -> na.isRoot).count();
 
         System.out.println("\n=== P1 — NORMALISATION ===");
         System.out.printf("Root axioms:  expected=%-4d actual=%d%n",
                 expected.axiomCount, actualRoots);
         System.out.printf("Sharpenings:  expected=%-4d actual=%d%n",
-                expected.sharpeningCount, kb1.sharpening.size());
+                expected.sharpeningCount, kb.sharpening.size());
         System.out.printf("Fresh FC:     expected=%-4d actual=%d%n",
-                expected.freshConceptCount, countFreshConcepts(kb1));
+                expected.freshConceptCount, countFreshConcepts(kb));
         System.out.printf("Fresh FR:     expected=%-4d actual=%d%n",
-                expected.freshRoleCount, countFreshRoles(kb1));
+                expected.freshRoleCount, countFreshRoles(kb));
 
         Assert.assertEquals("P1 axiom count",
                 expected.axiomCount, (int) actualRoots);
         Assert.assertEquals("P1 sharpening count",
-                expected.sharpeningCount, kb1.sharpening.size());
+                expected.sharpeningCount, kb.sharpening.size());
 
-        // ── P2 + P3 — share the same normalisation run ───────────────────────
-        OWLOntology ont2 = buildOntology(axioms, formulas, sharpening);
-        StandpointKnowledgeBase kb2        = new NormalisationPipeline(ont2).run();
-        PrecisificationContext  ctx        = new PrecisificationPipeline(kb2).run();
-        OWLOntology             translated = new TranslationPipeline(ctx, null).run();
-
-        // ── P2 — Precisification ──────────────────────────────────────────────
+        // ── P2 assertions ─────────────────────────────────────────────────────
         int S = ctx.standpoints.size();
         int D = ctx.diamonds.size();
-        int I = collectIndividualCount(kb2);
+        int I = collectIndividualCount(kb);
         int expectedPrec = S + 2 * D + I * D;
 
         System.out.println("\n=== P2 — PRECISIFICATION ===");
         System.out.printf("S=%-3d D=%-3d I=%-3d  |Π_K|: expected=%-4d actual=%d%n",
                 S, D, I, expectedPrec, ctx.precSet.size());
-
         Assert.assertEquals("P2 precisification size", expectedPrec, ctx.precSet.size());
 
-        // ── P3 — Translation ──────────────────────────────────────────────────
-        int expectedAxioms = computeExpectedTranslationAxiomCount(kb2, ctx);
+        // ── P3 assertions ─────────────────────────────────────────────────────
+        int expectedAxioms = computeExpectedTranslationAxiomCount(kb, ctx);
         int actualAxioms   = translated.getLogicalAxiomCount();
 
         System.out.println("\n=== P3 — TRANSLATION ===");
         System.out.printf("Expected=%-4d actual=%d%n", expectedAxioms, actualAxioms);
-
         Assert.assertEquals("P3 axiom count", expectedAxioms, actualAxioms);
 
-        // ── P4 Mode A — translated KB as-is ──────────────────────────────────
-        OWLReasoner r1 = new Reasoner(new Configuration(), translated);
-        boolean modeA  = r1.isConsistent();
-        r1.dispose();
-
         System.out.println("\n=== P4 — HERMIT ===");
-        Assert.assertTrue("P4 Mode A: expected consistent", modeA);
 
-        // ── P4 Mode B — contradiction injected ───────────────────────────────
-        OWLOntology ont3 = buildOntology(axioms, formulas, sharpening);
-        injectContradiction(ont3);
-        StandpointKnowledgeBase kb3  = new NormalisationPipeline(ont3).run();
-        PrecisificationContext  ctx3 = new PrecisificationPipeline(kb3).run();
-        OWLOntology translated3      = new TranslationPipeline(ctx3, null).run();
+        // ── Mode A-1.0 — reuse translated from P3 (no copy, no rebuild) ──────
+        // All names are unique across generated axioms → structurally consistent.
+        long tA10s = System.currentTimeMillis();
+        OWLReasoner rA10 = new Reasoner(new Configuration(), translated);
+        boolean modeA10  = rA10.isConsistent(); rA10.dispose();
+        long tA10e = System.currentTimeMillis();
+        System.out.printf("Mode A-1.0 (as-is):              consistent=%b  (expected: true)   [%d ms]%n", modeA10, tA10e-tA10s);
+        Assert.assertTrue("P4 Mode A-1.0: expected consistent", modeA10);
 
-        OWLReasoner r2 = new Reasoner(new Configuration(), translated3);
-        boolean modeB  = r2.isConsistent();
-        r2.dispose();
+        // ── Modes A-1.1 through B-1.2 — copy baseOnt, inject, retranslate ────
+        // Each injector adds standpoints, diamonds, or sharpenings that change
+        // Π_K, so the full P1→P2→P3 chain must re-run after injection.
 
-        System.out.printf("Mode B: consistent=%b  (expected: false)%n", modeB);
-        Assert.assertFalse("P4 Mode B: expected inconsistent", modeB);
+        // ── Mode A-1.1 — append □_s[C ⊑ ⊥]  +  □_t[C(a)],  s ≠ t ──────────
+        // Separate worlds pi_s and pi_t → no clash.
+        long tA11s = System.currentTimeMillis();
+        OWLOntology ontA11 = copyOntology(baseOnt); injectBoxSatPattern(ontA11);
+        OWLOntology trA11  = translate(ontA11);
+        OWLReasoner rA11   = new Reasoner(new Configuration(), trA11);
+        boolean modeA11    = rA11.isConsistent(); rA11.dispose();
+        long tA11e = System.currentTimeMillis();
+        System.out.printf("Mode A-1.1 (□_s[C⊑⊥]+□_t[Ca]):  consistent=%b  (expected: true)   [%d ms]%n", modeA11, tA11e-tA11s);
+        Assert.assertTrue("P4 Mode A-1.1: expected consistent", modeA11);
+
+        // ── Mode A-1.2 — append ◇_s[C ⊑ ⊥]  +  ◇_s[C(a)] ──────────────────
+        // Two diamond formulas under s → two distinct fresh standpoints v≠w → no clash.
+        long tA12s = System.currentTimeMillis();
+        OWLOntology ontA12 = copyOntology(baseOnt); injectDiamondSatPattern(ontA12);
+        OWLOntology trA12  = translate(ontA12);
+        OWLReasoner rA12   = new Reasoner(new Configuration(), trA12);
+        boolean modeA12    = rA12.isConsistent(); rA12.dispose();
+        long tA12e = System.currentTimeMillis();
+        System.out.printf("Mode A-1.2 (◇_s[C⊑⊥]+◇_s[Ca]):  consistent=%b  (expected: true)   [%d ms]%n", modeA12, tA12e-tA12s);
+        Assert.assertTrue("P4 Mode A-1.2: expected consistent", modeA12);
+
+        // ── Mode B-1.0 — append ContraC ⊑ ⊥  +  ContraC(ind) unlabelled ──────
+        // Unlabelled → wrapped as □_*[...] → applies at every pi ∈ Π_K → clash.
+        long tB10s = System.currentTimeMillis();
+        OWLOntology ontB10 = copyOntology(baseOnt); injectContradiction(ontB10);
+        OWLOntology trB10  = translate(ontB10);
+        OWLReasoner rB10   = new Reasoner(new Configuration(), trB10);
+        boolean modeB10    = rB10.isConsistent(); rB10.dispose();
+        long tB10e = System.currentTimeMillis();
+        System.out.printf("Mode B-1.0 (unlabelled contra):  consistent=%b  (expected: false)  [%d ms]%n", modeB10, tB10e-tB10s);
+        Assert.assertFalse("P4 Mode B-1.0: expected inconsistent", modeB10);
+
+        // ── Mode B-1.1 — append □_s[C ⊑ ⊥]  +  □_t[C(a)]  +  t ⪯ s ─────────
+        // pi_t ∈ sigma(s) → C⊑⊥ at pi_t, but C(a) requires a ∈ C^{pi_t} → clash.
+        long tB11s = System.currentTimeMillis();
+        OWLOntology ontB11 = copyOntology(baseOnt); injectBoxUnsatPattern(ontB11);
+        OWLOntology trB11  = translate(ontB11);
+        OWLReasoner rB11   = new Reasoner(new Configuration(), trB11);
+        boolean modeB11    = rB11.isConsistent(); rB11.dispose();
+        long tB11e = System.currentTimeMillis();
+        System.out.printf("Mode B-1.1 (□_s+□_t+t⪯s):       consistent=%b  (expected: false)  [%d ms]%n", modeB11, tB11e-tB11s);
+        Assert.assertFalse("P4 Mode B-1.1: expected inconsistent", modeB11);
+
+        // ── Mode B-1.2 — append ◇_s[C ⊑ ⊥]  +  □_s[C(a)] ───────────────────
+        // Fresh v ⪯ s created; □_s[C(a)] applies at pi_v, but C⊑⊥ at pi_v → clash.
+        long tB12s = System.currentTimeMillis();
+        OWLOntology ontB12 = copyOntology(baseOnt); injectDiamondUnsatPattern(ontB12);
+        OWLOntology trB12  = translate(ontB12);
+        OWLReasoner rB12   = new Reasoner(new Configuration(), trB12);
+        boolean modeB12    = rB12.isConsistent(); rB12.dispose();
+        long tB12e = System.currentTimeMillis();
+        System.out.printf("Mode B-1.2 (◇_s[C⊑⊥]+□_s[Ca]):  consistent=%b  (expected: false)  [%d ms]%n", modeB12, tB12e-tB12s);
+        Assert.assertFalse("P4 Mode B-1.2: expected inconsistent", modeB12);
+    }
+
+    // ── Shared translation helper ─────────────────────────────────────────────
+
+    private OWLOntology translate(OWLOntology ont) throws Exception {
+        StandpointKnowledgeBase kb  = new NormalisationPipeline(ont).run();
+        PrecisificationContext  ctx = new PrecisificationPipeline(kb).run();
+        return new TranslationPipeline(ctx, null).run();
     }
 
     // =========================================================================
-    // Contradiction injector
+    // P4 injectors
     // =========================================================================
 
     /**
-     * Injects two unlabelled OWL axioms — ContraC ⊑ ⊥ and ContraC(contra_ind).
-     * Unlabelled axioms are wrapped as box_*[...] by NormalisationPipeline,
-     * so they translate for every pi in sigma(*) = Pi_K:
-     *   ContraC_pi ⊑ ⊥  and  ContraC_pi(contra_ind)
-     * -> contra_ind in ContraC_pi = empty -> inconsistent.
+     * Mode A-1.1: □_sA[SA_C ⊑ ⊥]  +  □_sB[SA_C(sa_ind)]
+     * sA and sB are independent — no sharpening, separate worlds → consistent.
+     */
+    private void injectBoxSatPattern(OWLOntology ontology) {
+        OWLOntologyManager manager = ontology.getOWLOntologyManager();
+        OWLDataFactory     df      = manager.getOWLDataFactory();
+        String base = "http://standpoint.org/test#";
+        OWLClass           C   = df.getOWLClass(IRI.create(base + "SA_C"));
+        OWLNamedIndividual ind = df.getOWLNamedIndividual(IRI.create(base + "sa_ind"));
+        OWLAnnotationProperty axiomProp   = df.getOWLAnnotationProperty(IRI.create(base + "standpointAxiom"));
+        OWLAnnotationProperty formulaProp = df.getOWLAnnotationProperty(IRI.create(base + "standpointFormula"));
+        manager.addAxiom(ontology,
+                df.getOWLSubClassOfAxiom(C, df.getOWLNothing())
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SA1\"></axiom>")))));
+        manager.addAxiom(ontology,
+                df.getOWLClassAssertionAxiom(C, ind)
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SA2\"></axiom>")))));
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"box\" standpoint=\"sA\"><literal ref=\"SA1\"/></formula>");
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"box\" standpoint=\"sB\"><literal ref=\"SA2\"/></formula>");
+    }
+
+    /**
+     * Mode A-1.2: ◇_sD[SD_C ⊑ ⊥]  +  ◇_sD[SD_C(sd_ind)]
+     * Two diamond formulas → two distinct fresh standpoints v≠w ⪯ sD → consistent.
+     */
+    private void injectDiamondSatPattern(OWLOntology ontology) {
+        OWLOntologyManager manager = ontology.getOWLOntologyManager();
+        OWLDataFactory     df      = manager.getOWLDataFactory();
+        String base = "http://standpoint.org/test#";
+        OWLClass           C   = df.getOWLClass(IRI.create(base + "SD_C"));
+        OWLNamedIndividual ind = df.getOWLNamedIndividual(IRI.create(base + "sd_ind"));
+        OWLAnnotationProperty axiomProp   = df.getOWLAnnotationProperty(IRI.create(base + "standpointAxiom"));
+        OWLAnnotationProperty formulaProp = df.getOWLAnnotationProperty(IRI.create(base + "standpointFormula"));
+        manager.addAxiom(ontology,
+                df.getOWLSubClassOfAxiom(C, df.getOWLNothing())
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SD1\"></axiom>")))));
+        manager.addAxiom(ontology,
+                df.getOWLClassAssertionAxiom(C, ind)
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SD2\"></axiom>")))));
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"diamond\" standpoint=\"sD\"><literal ref=\"SD1\"/></formula>");
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"diamond\" standpoint=\"sD\"><literal ref=\"SD2\"/></formula>");
+    }
+
+    /**
+     * Mode B-1.0: ContraC ⊑ ⊥  +  ContraC(contra_ind)  (unlabelled, no standpointAxiom).
+     * Unlabelled axioms are wrapped as □_*[...] → translate for every pi ∈ Π_K → clash.
      */
     private void injectContradiction(OWLOntology ontology) {
         OWLOntologyManager manager = ontology.getOWLOntologyManager();
         OWLDataFactory     df      = manager.getOWLDataFactory();
         String base = "http://standpoint.org/test#";
+        OWLClass           C   = df.getOWLClass(IRI.create(base + "ContraC"));
+        OWLNamedIndividual ind = df.getOWLNamedIndividual(IRI.create(base + "contra_ind"));
+        manager.addAxiom(ontology, df.getOWLSubClassOfAxiom(C, df.getOWLNothing()));
+        manager.addAxiom(ontology, df.getOWLClassAssertionAxiom(C, ind));
+    }
 
-        OWLClass           contraC   = df.getOWLClass(IRI.create(base + "ContraC"));
-        OWLNamedIndividual contraInd =
-                df.getOWLNamedIndividual(IRI.create(base + "contra_ind"));
+    /**
+     * Mode B-1.1: □_sE[SE_C ⊑ ⊥]  +  □_sF[SE_C(se_ind)]  +  sF ⪯ sE
+     * pi_sF ∈ sigma(sE) → SE_C⊑⊥ at pi_sF but SE_C(se_ind) requires
+     * se_ind ∈ SE_C^{pi_sF} → contradiction.
+     */
+    private void injectBoxUnsatPattern(OWLOntology ontology) {
+        OWLOntologyManager manager = ontology.getOWLOntologyManager();
+        OWLDataFactory     df      = manager.getOWLDataFactory();
+        String base = "http://standpoint.org/test#";
+        OWLClass           C   = df.getOWLClass(IRI.create(base + "SE_C"));
+        OWLNamedIndividual ind = df.getOWLNamedIndividual(IRI.create(base + "se_ind"));
+        OWLAnnotationProperty axiomProp      = df.getOWLAnnotationProperty(IRI.create(base + "standpointAxiom"));
+        OWLAnnotationProperty formulaProp    = df.getOWLAnnotationProperty(IRI.create(base + "standpointFormula"));
+        OWLAnnotationProperty sharpeningProp = df.getOWLAnnotationProperty(IRI.create(base + "standpointSharpening"));
+        manager.addAxiom(ontology,
+                df.getOWLSubClassOfAxiom(C, df.getOWLNothing())
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SE1\"></axiom>")))));
+        manager.addAxiom(ontology,
+                df.getOWLClassAssertionAxiom(C, ind)
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SE2\"></axiom>")))));
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"box\" standpoint=\"sE\"><literal ref=\"SE1\"/></formula>");
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"box\" standpoint=\"sF\"><literal ref=\"SE2\"/></formula>");
+        manager.applyChange(new AddOntologyAnnotation(ontology, df.getOWLAnnotation(
+                sharpeningProp, df.getOWLLiteral(
+                        "<sharpening><lhs><standpoint>sF</standpoint></lhs>" +
+                                "<rhs><standpoint>sE</standpoint></rhs></sharpening>"))));
+    }
 
+    /**
+     * Mode B-1.2: ◇_sG[SG_C ⊑ ⊥]  +  □_sG[SG_C(sg_ind)]
+     * Rule (1) creates fresh v ⪯ sG; □_sG[SG_C(sg_ind)] applies at pi_v,
+     * but SG_C⊑⊥ holds at pi_v → contradiction.
+     */
+    private void injectDiamondUnsatPattern(OWLOntology ontology) {
+        OWLOntologyManager manager = ontology.getOWLOntologyManager();
+        OWLDataFactory     df      = manager.getOWLDataFactory();
+        String base = "http://standpoint.org/test#";
+        OWLClass           C   = df.getOWLClass(IRI.create(base + "SG_C"));
+        OWLNamedIndividual ind = df.getOWLNamedIndividual(IRI.create(base + "sg_ind"));
+        OWLAnnotationProperty axiomProp   = df.getOWLAnnotationProperty(IRI.create(base + "standpointAxiom"));
+        OWLAnnotationProperty formulaProp = df.getOWLAnnotationProperty(IRI.create(base + "standpointFormula"));
         manager.addAxiom(ontology,
-                df.getOWLSubClassOfAxiom(contraC, df.getOWLNothing()));
+                df.getOWLSubClassOfAxiom(C, df.getOWLNothing())
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SG1\"></axiom>")))));
         manager.addAxiom(ontology,
-                df.getOWLClassAssertionAxiom(contraC, contraInd));
+                df.getOWLClassAssertionAxiom(C, ind)
+                        .getAnnotatedAxiom(singleton(df.getOWLAnnotation(axiomProp,
+                                df.getOWLLiteral("<axiom id=\"SG2\"></axiom>")))));
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"diamond\" standpoint=\"sG\"><literal ref=\"SG1\"/></formula>");
+        addFormula(manager, ontology, df, formulaProp,
+                "<formula op=\"box\" standpoint=\"sG\"><literal ref=\"SG2\"/></formula>");
+    }
+
+    // ── Shared injector helper ────────────────────────────────────────────────
+
+    private void addFormula(OWLOntologyManager manager, OWLOntology ontology,
+                            OWLDataFactory df, OWLAnnotationProperty formulaProp,
+                            String xml) {
+        manager.applyChange(new AddOntologyAnnotation(ontology,
+                df.getOWLAnnotation(formulaProp, df.getOWLLiteral(xml))));
+    }
+
+    private Set<OWLAnnotation> singleton(OWLAnnotation ann) {
+        return Collections.singleton(ann);
     }
 
     // =========================================================================
@@ -233,8 +408,7 @@ public class StandpointPipelineTest {
     // =========================================================================
 
     private int computeExpectedTranslationAxiomCount(
-            StandpointKnowledgeBase kb,
-            PrecisificationContext ctx) {
+            StandpointKnowledgeBase kb, PrecisificationContext ctx) {
         int total = 0;
         for (NormalisedAxiom na : kb.owlMap.values())
             total += ctx.precSet.sigma(na.standpoint).size();
@@ -281,36 +455,29 @@ public class StandpointPipelineTest {
     }
 
     // =========================================================================
-    // GeneratedAxiom
+    // GeneratedAxiom and generators
     // =========================================================================
 
     private static class GeneratedAxiom {
-        public final String            id;
+        public final String id;
         public final StandpointAxiomType kind;
-        public final boolean           negated;
-        public final String            nameA, nameB, nameC;
-        public final String            modalOp, modalStandpoint;
-        public final boolean           modalInnerNeg;
+        public final boolean negated;
+        public final String nameA, nameB, nameC;
+        public final String modalOp, modalStandpoint;
+        public final boolean modalInnerNeg;
 
         public GeneratedAxiom(String id, StandpointAxiomType kind, boolean negated,
                               String nameA, String nameB, String nameC,
                               String modalOp, String modalStandpoint,
                               boolean modalInnerNeg) {
-            this.id              = id;
-            this.kind            = kind;
-            this.negated         = negated;
-            this.nameA           = nameA;
-            this.nameB           = nameB;
-            this.nameC           = nameC;
-            this.modalOp         = modalOp;
-            this.modalStandpoint = modalStandpoint;
-            this.modalInnerNeg   = modalInnerNeg;
+            this.id = id; this.kind = kind; this.negated = negated;
+            this.nameA = nameA; this.nameB = nameB; this.nameC = nameC;
+            this.modalOp = modalOp; this.modalStandpoint = modalStandpoint;
+            this.modalInnerNeg = modalInnerNeg;
         }
 
         public boolean hasModal() { return modalOp != null; }
     }
-
-    // ── Axiom generators ─────────────────────────────────────────────────────
 
     private GeneratedAxiom generateCI() {
         return new GeneratedAxiom(freshAxiomId(),
@@ -352,8 +519,6 @@ public class StandpointPipelineTest {
                 freshRole(), null, null, null, null, false);
     }
 
-    // ── OWL axiom builder ─────────────────────────────────────────────────────
-
     private OWLAxiom buildOWLAxiom(GeneratedAxiom ax, OWLDataFactory df, String base) {
         switch (ax.kind) {
             case CONCEPT_INCLUSION:
@@ -380,8 +545,6 @@ public class StandpointPipelineTest {
         }
     }
 
-    // ── Annotation string builder ─────────────────────────────────────────────
-
     private String buildAxiomAnnotation(GeneratedAxiom ax) {
         StringBuilder body = new StringBuilder();
         switch (ax.kind) {
@@ -398,29 +561,17 @@ public class StandpointPipelineTest {
                 }
                 break;
             case CONCEPT_ASSERTION:
-                body.append(ax.nameA).append(" Type: ").append(ax.nameB);
-                break;
+                body.append(ax.nameA).append(" Type: ").append(ax.nameB); break;
             case ROLE_INCLUSION:
-                body.append(ax.nameA).append(" SubPropertyOf: ").append(ax.nameB);
-                break;
+                body.append(ax.nameA).append(" SubPropertyOf: ").append(ax.nameB); break;
             case ROLE_ASSERTION:
                 body.append("Individual: ").append(ax.nameA)
                         .append(" Facts: ").append(ax.nameB)
-                        .append(" ").append(ax.nameC);
-                break;
+                        .append(" ").append(ax.nameC); break;
             case ROLE_TRANSITIVITY:
-                body.append("Transitive ").append(ax.nameA);
-                break;
+                body.append("Transitive ").append(ax.nameA); break;
         }
         return "<axiom id=\"" + ax.id + "\">" + body + "</axiom>";
-    }
-
-    // ── Shared infrastructure ─────────────────────────────────────────────────
-
-    private List<String> extractStandpoints(List<GeneratedFormula> formulas) {
-        List<String> out = new ArrayList<>();
-        for (GeneratedFormula f : formulas) out.add(f.standpoint);
-        return out;
     }
 
     // ── Formula / sharpening generators ──────────────────────────────────────
@@ -428,12 +579,8 @@ public class StandpointPipelineTest {
     private static class GeneratedFormula {
         public final String operator, standpoint;
         public final List<GeneratedAxiom> literals;
-
-        public GeneratedFormula(String operator, String standpoint,
-                                List<GeneratedAxiom> literals) {
-            this.operator   = operator;
-            this.standpoint = standpoint;
-            this.literals   = literals;
+        public GeneratedFormula(String op, String sp, List<GeneratedAxiom> lits) {
+            operator = op; standpoint = sp; literals = lits;
         }
     }
 
@@ -459,28 +606,26 @@ public class StandpointPipelineTest {
         return formulas;
     }
 
+    private List<String> extractStandpoints(List<GeneratedFormula> formulas) {
+        List<String> out = new ArrayList<>();
+        for (GeneratedFormula f : formulas) out.add(f.standpoint);
+        return out;
+    }
+
     private enum SharpeningKind { NORMAL, ZERO, NEGATED }
 
     private static class GeneratedSharpening {
         public final List<String> lhs;
-        public final String       rhs;
+        public final String rhs;
         public final SharpeningKind kind;
-
         public GeneratedSharpening(List<String> lhs, String rhs, SharpeningKind kind) {
-            this.lhs  = lhs;
-            this.rhs  = rhs;
-            this.kind = kind;
+            this.lhs = lhs; this.rhs = rhs; this.kind = kind;
         }
     }
 
     /**
-     * Generates a mix of NORMAL, ZERO, and NEGATED sharpenings from a shared pool.
-     *
-     * NORMAL (s ⪯ t): contributes +1 to sharpeningCount.
-     * ZERO (s1 ∩ s2 ⪯ 0): intersection form — expresses that s1 and s2 have
-     *   no world in common. Does not force inconsistency on its own; requires
-     *   an additional sharpening placing a world into both sigma(s1) and sigma(s2).
-     * NEGATED not(s ⪯ t): Rule (8) expands to internal ZERO.
+     * Generates sharpenings using "FSM_" prefix to avoid collision with the
+     * pipeline's own "FS_" prefix used by Rule (1) for diamond formulas.
      */
     private List<GeneratedSharpening> generateSharpening(
             List<String> standpoints, int numNormal, int numZero, int numNegated) {
@@ -488,31 +633,24 @@ public class StandpointPipelineTest {
         List<String> available = new ArrayList<>(standpoints);
         Collections.shuffle(available, new Random());
         int freshCounter = 0;
-
         for (int i = 0; i < numNormal; i++) {
-            while (available.size() < 2) available.add("FS_" + (++freshCounter));
-            String lhs = available.remove(0);
-            String rhs = available.remove(0);
+            while (available.size() < 2) available.add("FSM_" + (++freshCounter));
             result.add(new GeneratedSharpening(
-                    Collections.singletonList(lhs), rhs, SharpeningKind.NORMAL));
+                    Collections.singletonList(available.remove(0)),
+                    available.remove(0), SharpeningKind.NORMAL));
         }
-
         for (int i = 0; i < numZero; i++) {
-            while (available.size() < 2) available.add("FS_" + (++freshCounter));
-            String lhs1 = available.remove(0);
-            String lhs2 = available.remove(0);
+            while (available.size() < 2) available.add("FSM_" + (++freshCounter));
             result.add(new GeneratedSharpening(
-                    Arrays.asList(lhs1, lhs2), "0", SharpeningKind.ZERO));
+                    Arrays.asList(available.remove(0), available.remove(0)),
+                    "0", SharpeningKind.ZERO));
         }
-
         for (int i = 0; i < numNegated; i++) {
-            while (available.size() < 2) available.add("FS_" + (++freshCounter));
-            String lhs = available.remove(0);
-            String rhs = available.remove(0);
+            while (available.size() < 2) available.add("FSM_" + (++freshCounter));
             result.add(new GeneratedSharpening(
-                    Collections.singletonList(lhs), rhs, SharpeningKind.NEGATED));
+                    Collections.singletonList(available.remove(0)),
+                    available.remove(0), SharpeningKind.NEGATED));
         }
-
         return result;
     }
 
@@ -529,15 +667,11 @@ public class StandpointPipelineTest {
             List<GeneratedSharpening> sharpenings) {
 
         ExpectedNormalisationCounts counts = new ExpectedNormalisationCounts();
-
         Set<String> referenced = new HashSet<>();
         for (GeneratedFormula f : formulas)
-            for (GeneratedAxiom a : f.literals)
-                referenced.add(a.id);
-
+            for (GeneratedAxiom a : f.literals) referenced.add(a.id);
         for (GeneratedAxiom a : allAxioms)
-            if (!referenced.contains(a.id))
-                counts.axiomCount++;
+            if (!referenced.contains(a.id)) counts.axiomCount++;
 
         for (GeneratedFormula formula : formulas) {
             if ("diamond".equals(formula.operator)) counts.sharpeningCount++;
@@ -545,43 +679,29 @@ public class StandpointPipelineTest {
                 if (ax.negated) {
                     switch (ax.kind) {
                         case CONCEPT_INCLUSION:
-                            counts.axiomCount += 3;
-                            counts.freshConceptCount++;
-                            counts.freshRoleCount++;
-                            break;
+                            counts.axiomCount += 3; counts.freshConceptCount++;
+                            counts.freshRoleCount++; break;
                         case CONCEPT_ASSERTION:
-                            counts.axiomCount++;
-                            break;
+                            counts.axiomCount++; break;
                         case ROLE_INCLUSION:
-                            counts.axiomCount += 3;
-                            counts.freshConceptCount += 2;
-                            counts.freshRoleCount++;
-                            break;
+                            counts.axiomCount += 3; counts.freshConceptCount += 2;
+                            counts.freshRoleCount++; break;
                         case ROLE_ASSERTION:
-                            counts.axiomCount += 3;
-                            counts.freshConceptCount += 2;
-                            break;
+                            counts.axiomCount += 3; counts.freshConceptCount += 2; break;
                         case ROLE_TRANSITIVITY:
-                            counts.axiomCount += 3;
-                            counts.freshConceptCount += 2;
-                            counts.freshRoleCount++;
-                            break;
+                            counts.axiomCount += 3; counts.freshConceptCount += 2;
+                            counts.freshRoleCount++; break;
                     }
-                } else {
-                    counts.axiomCount++;
-                }
+                } else { counts.axiomCount++; }
             }
         }
-
         for (GeneratedSharpening s : sharpenings) {
             int n = s.lhs.size();
             switch (s.kind) {
-                case NORMAL:  counts.sharpeningCount++;                break;
-                case ZERO:    counts.axiomCount += n + 1;
-                    counts.freshConceptCount += n;         break;
-                case NEGATED: counts.sharpeningCount += n;
-                    counts.axiomCount += 3;
-                    counts.freshConceptCount += 2;         break;
+                case NORMAL:  counts.sharpeningCount++;                          break;
+                case ZERO:    counts.axiomCount += n+1; counts.freshConceptCount += n; break;
+                case NEGATED: counts.sharpeningCount += n; counts.axiomCount += 3;
+                    counts.freshConceptCount += 2;                     break;
             }
         }
         return counts;
@@ -600,12 +720,9 @@ public class StandpointPipelineTest {
                 IRI.create("http://standpoint.org/test"));
         String base = "http://standpoint.org/test#";
 
-        OWLAnnotationProperty axiomProp = df.getOWLAnnotationProperty(
-                IRI.create(base + "standpointAxiom"));
-        OWLAnnotationProperty formulaProp = df.getOWLAnnotationProperty(
-                IRI.create(base + "standpointFormula"));
-        OWLAnnotationProperty sharpeningProp = df.getOWLAnnotationProperty(
-                IRI.create(base + "standpointSharpening"));
+        OWLAnnotationProperty axiomProp      = df.getOWLAnnotationProperty(IRI.create(base + "standpointAxiom"));
+        OWLAnnotationProperty formulaProp    = df.getOWLAnnotationProperty(IRI.create(base + "standpointFormula"));
+        OWLAnnotationProperty sharpeningProp = df.getOWLAnnotationProperty(IRI.create(base + "standpointSharpening"));
         manager.addAxiom(ontology, df.getOWLDeclarationAxiom(axiomProp));
         manager.addAxiom(ontology, df.getOWLDeclarationAxiom(formulaProp));
         manager.addAxiom(ontology, df.getOWLDeclarationAxiom(sharpeningProp));
@@ -615,17 +732,12 @@ public class StandpointPipelineTest {
                     buildOWLAxiom(ax, df, base).getAnnotatedAxiom(
                             Collections.singleton(df.getOWLAnnotation(axiomProp,
                                     df.getOWLLiteral(buildAxiomAnnotation(ax))))));
-
         for (GeneratedFormula f : formulas)
             manager.applyChange(new AddOntologyAnnotation(ontology,
-                    df.getOWLAnnotation(formulaProp,
-                            df.getOWLLiteral(buildFormulaXml(f)))));
-
+                    df.getOWLAnnotation(formulaProp, df.getOWLLiteral(buildFormulaXml(f)))));
         for (GeneratedSharpening s : sharpenings)
             manager.applyChange(new AddOntologyAnnotation(ontology,
-                    df.getOWLAnnotation(sharpeningProp,
-                            df.getOWLLiteral(buildSharpeningXml(s)))));
-
+                    df.getOWLAnnotation(sharpeningProp, df.getOWLLiteral(buildSharpeningXml(s)))));
         return ontology;
     }
 
@@ -669,5 +781,20 @@ public class StandpointPipelineTest {
         else sb.append("<standpoint>").append(s.rhs).append("</standpoint>");
         sb.append("</rhs></sharpening>");
         return sb.toString();
+    }
+
+    /**
+     * Creates a new independent copy of the given ontology —
+     * same axioms and annotations, fresh manager — so injectors
+     * can modify it without affecting the base.
+     */
+    private OWLOntology copyOntology(OWLOntology source) throws Exception {
+        OWLOntologyManager newMgr = OWLManager.createOWLOntologyManager();
+        OWLOntology copy = newMgr.createOntology(
+                IRI.create("http://standpoint.org/test"));
+        newMgr.addAxioms(copy, source.getAxioms());
+        for (OWLAnnotation ann : source.getAnnotations())
+            newMgr.applyChange(new AddOntologyAnnotation(copy, ann));
+        return copy;
     }
 }
