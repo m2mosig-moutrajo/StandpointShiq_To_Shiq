@@ -36,7 +36,6 @@ import java.util.*;
  *   Mode B-1.1: append □_s[C ⊑ ⊥]  +  □_t[C(a)]  +  t ⪯ s    → inconsistent
  *   Mode B-1.2: append ◇_s[C ⊑ ⊥]  +  □_s[C(a)]              → inconsistent
  */
-@FixMethodOrder(MethodSorters.JVM)
 public class StandpointPipelineTest {
 
     // ── Instance counters ─────────────────────────────────────────────────────
